@@ -1,0 +1,9 @@
+{
+  "name": "Kelebek Sınav Sistemi",
+  "description": "Ortaöğretim okulları için ortak sınav oturma düzeni (kelebek sistemi), salon yerleşimi ve gözetmen yönetimi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+

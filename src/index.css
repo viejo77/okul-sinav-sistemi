@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* CRITICAL FIX FOR HTML2CANVAS WITH TAILWIND CSS:
+   Tailwind's preflight sets img { display: block }, which breaks html2canvas baseline
+   measurement (img.offsetTop - span.offsetTop) and causes all text to be rendered
+   shifted down by 10-15px with bottom halves sliced off.
+   Setting img to inline-block restores accurate baseline calculation. */
+img, svg, video, canvas, audio, iframe, embed, object {
+  display: inline-block !important;
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+@layer utilities {
+  /* Minimal, modern scrollbar across entire application */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .scrollbar-none,
+  .no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+
+  @media screen {
+    .print-only {
+      display: none !important;
+    }
+  }
+
+  @media print {
+    body {
+      background: white !important;
+      color: black !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .no-print {
+      display: none !important;
+    }
+
+    .print-only {
+      display: block !important;
+    }
+
+    /* Isolated print mode when printing from preview modal portal */
+    body.is-printing-report #root {
+      display: none !important;
+    }
+
+    body.is-printing-report #direct-print-container {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+    }
+
+    body.is-printing-report .no-print,
+    body.is-printing-report .print-only {
+      display: none !important;
+    }
+
+    /* Prevent breaking inside individual rooms or pages */
+    [data-pdf-page="true"] {
+      break-after: page !important;
+      page-break-after: always !important;
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+      margin: 0 auto !important;
+      box-shadow: none !important;
+      overflow: hidden !important;
+    }
+
+    @page {
+      margin: 4mm;
+      size: auto;
+    }
+  }
+}
+
