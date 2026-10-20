@@ -10,6 +10,7 @@ import { ClassDistributionsSection } from './components/sections/ClassDistributi
 import { ExamAnalysisSection } from './components/sections/ExamAnalysisSection';
 import { PrintCenterSection } from './components/sections/PrintCenterSection';
 import { ResponsibilityExamSection } from './components/sections/ResponsibilityExamSection';
+import { ExamScheduleSection } from './components/sections/ExamScheduleSection';
 import { PrintPreviewModal } from './components/modals/PrintPreviewModal';
 import { HelpTipsModal } from './components/modals/HelpTipsModal';
 import { FloatingHelpWidget } from './components/FloatingHelpWidget';
@@ -346,6 +347,9 @@ export default function App() {
           onImportBackup={handleImportBackup}
           onOpenHelpTips={() => setHelpModalOpen(true)}
           onOpenPrintModal={() => setPrintModalMode('SALON')}
+          studentsCount={students.length}
+          classroomsCount={classrooms.length}
+          teachersCount={teachers.length}
         />
 
         {/* Main Content Area */}
@@ -375,6 +379,19 @@ export default function App() {
               subjects={subjects}
               setSubjects={setSubjects}
               availableClasses={availableClasses}
+              onGoToExamSchedule={() => setActiveTab(10)}
+            />
+          )}
+
+          {activeTab === 10 && (
+            <ExamScheduleSection
+              exams={exams}
+              setExams={setExams}
+              subjects={subjects}
+              availableClasses={availableClasses}
+              activeExamId={activeExamId}
+              setActiveExamId={setActiveExamId}
+              onNavigateToExamTab={() => setActiveTab(1)}
             />
           )}
 
@@ -442,6 +459,7 @@ export default function App() {
               plan={currentPlan}
               onOpenPrintModal={mode => setPrintModalMode(mode)}
               onGoToPlan={() => setActiveTab(5)}
+              onGoToExamSchedule={() => setActiveTab(10)}
             />
           )}
 

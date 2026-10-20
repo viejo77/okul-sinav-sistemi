@@ -24,6 +24,7 @@ interface Props {
   subjects: Subject[];
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
   availableClasses: string[];
+  onGoToExamSchedule?: () => void;
 }
 
 export const ExamDefinitionSection: React.FC<Props> = ({
@@ -34,6 +35,7 @@ export const ExamDefinitionSection: React.FC<Props> = ({
   subjects,
   setSubjects,
   availableClasses,
+  onGoToExamSchedule,
 }) => {
   const activeExam = exams.find(e => e.id === activeExamId) || exams[0];
 
@@ -512,6 +514,18 @@ export const ExamDefinitionSection: React.FC<Props> = ({
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-600" />
               <span className="hidden sm:inline">Sınavı Sil</span>
+            </button>
+          )}
+
+          {onGoToExamSchedule && (
+            <button
+              type="button"
+              onClick={onGoToExamSchedule}
+              className="flex items-center gap-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold px-2.5 py-1 rounded-lg text-xs transition cursor-pointer shadow-2xs"
+              title="Panolara asılacak resmi ortak sınav takvimini aç ve yazdır"
+            >
+              <Calendar className="w-3.5 h-3.5 text-purple-600" />
+              <span>📅 Pano Takvimi</span>
             </button>
           )}
 

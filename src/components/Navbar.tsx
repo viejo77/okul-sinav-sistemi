@@ -20,9 +20,12 @@ import {
   LayoutDashboard,
   Printer,
   Award,
+  CalendarDays,
+  Database,
 } from 'lucide-react';
 import { Exam } from '../types';
 import { User } from 'firebase/auth';
+import { DataManagementModal } from './modals/DataManagementModal';
 
 interface NavbarProps {
   activeTab: number;
@@ -39,6 +42,9 @@ interface NavbarProps {
   onImportBackup: (file: File) => void;
   onOpenHelpTips: () => void;
   onOpenPrintModal?: () => void;
+  studentsCount?: number;
+  classroomsCount?: number;
+  teachersCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -56,13 +62,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   onImportBackup,
   onOpenHelpTips,
   onOpenPrintModal,
+  studentsCount = 0,
+  classroomsCount = 0,
+  teachersCount = 0,
 }) => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
 
   const tabs = [
     { id: 0, label: 'Dashboard', icon: LayoutDashboard },
     { id: 1, label: '1. Sınav Tanımlama', icon: Calendar },
+    { id: 10, label: '📅 Pano Sınav Takvimi', icon: CalendarDays },
     { id: 2, label: '2. Öğrenci Listesi', icon: Users },
     { id: 3, label: '3. Salon Yönetimi', icon: DoorClosed },
     { id: 4, label: '4. Gözetmen Programı', icon: GraduationCap },
@@ -76,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const activeExam = exams.find(e => e.id === activeExamId);
 
   return (
-    <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-30 no-print border-b border-slate-800 w-full overflow-x-hidden">
+    <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-30 no-print border-b border-slate-800 w-full">
       {/* Top bar */}
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 w-full">
         <div className="flex items-center justify-between min-h-[4rem] py-1.5 gap-2 sm:gap-3 w-full">
@@ -175,67 +184,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Manage Data Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 transition"
-              >
-                <span className="hidden sm:inline">Veri</span>
-                <span className="hidden md:inline"> Yönetimi</span>
-                <span className="sm:hidden">Veri</span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 z-20 text-xs">
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onLoadDemoData();
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-700 text-slate-200 flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>Örnek Demo Okul Verisi Yükle</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onExportBackup();
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-700 text-slate-200 flex items-center gap-2"
-                    >
-                      <Download className="w-4 h-4 text-emerald-400" />
-                      <span>Tüm Verileri Yedekle (JSON)</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        fileInputRef.current?.click();
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-700 text-slate-200 flex items-center gap-2"
-                    >
-                      <Upload className="w-4 h-4 text-blue-400" />
-                      <span>Yedekten Geri Yükle (JSON)</span>
-                    </button>
-                    <div className="border-t border-slate-700 my-1" />
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onResetData();
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-400 flex items-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Tüm Verileri Temizle</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Manage Data Button (Opens full-screen centered Data Management Modal) */}
+            <button
+              onClick={() => setIsDataManagementOpen(true)}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 transition cursor-pointer shadow-xs shrink-0"
+              title="Okul sınav verilerini yedekle, geri yükle veya demo veri yükle"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">Veri</span>
+              <span className="hidden md:inline"> Yönetimi</span>
+              <span className="sm:hidden">Veri</span>
+            </button>
 
             {/* Quick Print & PDF Button */}
             <button
@@ -262,22 +221,26 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Lightbulb className="w-3.5 h-3.5 text-amber-300" />
               <span className="hidden lg:inline">İpuçları</span>
             </button>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".json"
-              className="hidden"
-              onChange={e => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  onImportBackup(file);
-                }
-              }}
-            />
           </div>
         </div>
       </div>
+
+      {/* Data Management Center Modal */}
+      <DataManagementModal
+        isOpen={isDataManagementOpen}
+        onClose={() => setIsDataManagementOpen(false)}
+        onLoadDemoData={onLoadDemoData}
+        onExportBackup={onExportBackup}
+        onImportBackup={onImportBackup}
+        onResetData={onResetData}
+        stats={{
+          examsCount: exams.length,
+          studentsCount,
+          classroomsCount,
+          teachersCount,
+          activeExamName: activeExam?.name,
+        }}
+      />
 
       {/* Navigation tabs */}
       <div className="bg-slate-950/60 border-t border-slate-800/80 px-4 sm:px-6 lg:px-8">

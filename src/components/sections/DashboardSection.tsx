@@ -303,6 +303,15 @@ export const DashboardSection: React.FC<Props> = ({
           )}
 
           <button
+            onClick={() => onNavigateTab(10)}
+            className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs px-3 py-2 rounded-xl border border-purple-200 transition cursor-pointer"
+            title="Panolara asılacak ortak sınav takvimini aç ve yazdır"
+          >
+            <Calendar className="w-3.5 h-3.5 text-purple-600" />
+            <span>Pano Takvimi</span>
+          </button>
+
+          <button
             onClick={() => onNavigateTab(5)}
             className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
           >

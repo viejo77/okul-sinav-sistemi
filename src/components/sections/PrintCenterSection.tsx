@@ -21,12 +21,14 @@ interface Props {
   plan: SeatingPlanResult | undefined;
   onOpenPrintModal: (mode: 'ALL' | 'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES') => void;
   onGoToPlan: () => void;
+  onGoToExamSchedule?: () => void;
 }
 
 export const PrintCenterSection: React.FC<Props> = ({
   plan,
   onOpenPrintModal,
   onGoToPlan,
+  onGoToExamSchedule,
 }) => {
   if (!plan) {
     return (
@@ -41,7 +43,7 @@ export const PrintCenterSection: React.FC<Props> = ({
           Resmi sınav salon planları, kapı çizelgeleri ve gözetmen tutanaklarını alabilmek için lütfen
           önce <strong>5. Oturma Düzeni</strong> bölümünden kelebek dağıtımını çalıştırınız.
         </p>
-        <div className="mt-5 flex justify-center">
+        <div className="mt-5 flex justify-center gap-3">
           <button
             onClick={onGoToPlan}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
@@ -49,6 +51,15 @@ export const PrintCenterSection: React.FC<Props> = ({
             <span>5. Oturma Düzeni Bölümüne Git</span>
             <ArrowRight className="w-4 h-4" />
           </button>
+          {onGoToExamSchedule && (
+            <button
+              onClick={onGoToExamSchedule}
+              className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-purple-600" />
+              <span>Pano Sınav Takvimi</span>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -82,8 +93,19 @@ export const PrintCenterSection: React.FC<Props> = ({
           </span>
         </div>
 
-        {/* Bulk PDF Action */}
+        {/* Bulk PDF & Pano Schedule Action */}
         <div className="flex items-center gap-2">
+          {onGoToExamSchedule && (
+            <button
+              onClick={onGoToExamSchedule}
+              className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              title="Okul panolarına asılacak Ortak Sınav Takvimini aç ve yazdır"
+            >
+              <Calendar className="w-3.5 h-3.5 text-purple-600" />
+              <span>📅 Pano Sınav Takvimi</span>
+            </button>
+          )}
+
           <button
             onClick={() => onOpenPrintModal('ALL')}
             className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-2xs transition cursor-pointer"
