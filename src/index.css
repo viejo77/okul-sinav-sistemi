@@ -88,6 +88,26 @@ html, body {
       display: none !important;
     }
 
+    /* Isolated print mode for Noticeboard Exam Schedule */
+    body.is-printing-board-schedule header,
+    body.is-printing-board-schedule nav,
+    body.is-printing-board-schedule footer,
+    body.is-printing-board-schedule .no-print,
+    body.is-printing-board-schedule .print-only {
+      display: none !important;
+    }
+
+    body.is-printing-board-schedule #board-schedule-print-document {
+      display: block !important;
+      visibility: visible !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: white !important;
+    }
+
     /* Prevent breaking inside individual rooms or pages */
     [data-pdf-page="true"] {
       break-after: page !important;

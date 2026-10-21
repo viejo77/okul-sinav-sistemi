@@ -209,6 +209,20 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Isolated print mode for Noticeboard Exam Schedule only
+  const handlePrintBoardSchedule = () => {
+    document.body.classList.add('is-printing-board-schedule');
+    window.print();
+  };
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      document.body.classList.remove('is-printing-board-schedule');
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => window.removeEventListener('afterprint', handleAfterPrint);
+  }, []);
+
   // Modal State for Adding/Editing a Session
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -538,7 +552,7 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
 
           {/* Primary Print Button */}
           <button
-            onClick={() => window.print()}
+            onClick={handlePrintBoardSchedule}
             className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
             title="Resmi MEB A4 formatında panoya asılacak sınav takvimini yazdır veya PDF olarak indir"
           >
@@ -680,7 +694,10 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
       </div>
 
       {/* 4. OFFICIAL NOTICEBOARD PRINTABLE DOCUMENT (A4 Optimized) */}
-      <div className="bg-white rounded-2xl border-2 border-slate-300 p-6 sm:p-8 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:w-full">
+      <div
+        id="board-schedule-print-document"
+        className="bg-white rounded-2xl border-2 border-slate-300 p-6 sm:p-8 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:w-full"
+      >
         {/* Printable Official School Header */}
         <div className="text-center border-b-2 border-slate-900 pb-4 mb-4">
           <div className="text-xs font-bold tracking-widest text-slate-700 uppercase">

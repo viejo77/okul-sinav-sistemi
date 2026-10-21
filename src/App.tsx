@@ -385,9 +385,10 @@ export default function App() {
           classroomsCount={classrooms.length}
           teachersCount={teachers.length}
         />
+      </div>
 
-        {/* Main Content Area */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 w-full flex-1">
+      {/* Main Content Area */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 w-full flex-1">
           {activeTab === 0 && (
             <DashboardSection
               exams={exams}
@@ -513,7 +514,7 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200 bg-white py-1.5 px-4 mt-1.5 text-center text-[11px] text-slate-500 shrink-0">
+        <footer className="no-print border-t border-slate-200 bg-white py-1.5 px-4 mt-1.5 text-center text-[11px] text-slate-500 shrink-0">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-1">
             <div className="font-semibold text-slate-700">
               Kelebek Sınav Sistemi • Okul Ortak Sınav Dağıtım ve Oturma Düzeni
@@ -523,7 +524,6 @@ export default function App() {
             </div>
           </div>
         </footer>
-      </div>
 
       {/* Floating Quick Helper Widget (Context-aware for active tab) */}
       <FloatingHelpWidget
@@ -548,8 +548,8 @@ export default function App() {
         />
       )}
 
-      {/* Default Print Output (Active when window.print() is called outside modal) */}
-      {currentPlan && (
+      {/* Default Print Output (Active ONLY when window.print() is called on Section 8) */}
+      {currentPlan && activeTab === 8 && (
         <div className="print-only">
           <SalonSeatingPrint plan={currentPlan} forPrint={true} />
           <SupervisorListPrint plan={currentPlan} forPrint={true} />
