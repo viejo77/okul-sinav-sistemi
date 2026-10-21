@@ -71,7 +71,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const tabs = [
     { id: 0, label: 'Dashboard', icon: LayoutDashboard },
     { id: 1, label: '1. Sınav Tanımlama', icon: Calendar },
-    { id: 10, label: '📅 Pano Sınav Takvimi', icon: CalendarDays },
     { id: 2, label: '2. Öğrenci Listesi', icon: Users },
     { id: 3, label: '3. Salon Yönetimi', icon: DoorClosed },
     { id: 4, label: '4. Gözetmen Programı', icon: GraduationCap },
@@ -183,6 +182,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden xl:inline">Google ile Bağlan</span>
               </button>
             )}
+
+            {/* Dedicated Pano Sınav Takvimi Button */}
+            <button
+              onClick={() => setActiveTab(10)}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 border ${
+                activeTab === 10
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
+                  : 'bg-purple-950/40 text-purple-200 border-purple-800/70 hover:bg-purple-900/50 hover:text-white'
+              }`}
+              title="Panolara asılacak resmi ortak sınav takvimini aç, düzenle veya yazdır"
+            >
+              <CalendarDays className="w-3.5 h-3.5 text-purple-300" />
+              <span className="hidden sm:inline">Pano</span>
+              <span> Takvimi</span>
+            </button>
 
             {/* Manage Data Button (Opens full-screen centered Data Management Modal) */}
             <button

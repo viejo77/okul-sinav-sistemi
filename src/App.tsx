@@ -213,9 +213,43 @@ export default function App() {
     responsibilitySettings,
   ]);
 
-  // Active exam & subject helpers
   const activeExam = exams.find(e => e.id === activeExamId) || exams[0];
-  const activeSubject = subjects.find(s => s.id === activeExam?.subjectId);
+  const activeSubject = React.useMemo(() => {
+    if (!activeExam) return subjects[0];
+    let found = subjects.find(s => s.id === activeExam.subjectId);
+    if (found) return found;
+
+    if (activeExam.subjectName) {
+      found = subjects.find(
+        s => s.name.trim().toLowerCase() === activeExam.subjectName.trim().toLowerCase()
+      );
+      if (found) return found;
+    }
+
+    if (activeExam.assignedClasses && activeExam.assignedClasses.length > 0) {
+      for (const ac of activeExam.assignedClasses) {
+        if (ac.subjectId) {
+          found = subjects.find(s => s.id === ac.subjectId);
+          if (found) return found;
+        }
+        if (ac.subjectName) {
+          found = subjects.find(
+            s => s.name.trim().toLowerCase() === ac.subjectName.trim().toLowerCase()
+          );
+          if (found) return found;
+        }
+      }
+    }
+
+    return (
+      subjects[0] || {
+        id: activeExam.subjectId || 'sub-auto',
+        name: activeExam.subjectName || 'Ortak Sınav',
+        code: 'ORT',
+        teachers: [],
+      }
+    );
+  }, [subjects, activeExam]);
 
   // Available unique class list (e.g. ["9-A", "9-B", "10-A", "10-B", "11-A", "11-B", "12-A"])
   const availableClasses = Array.from(
@@ -388,10 +422,12 @@ export default function App() {
               exams={exams}
               setExams={setExams}
               subjects={subjects}
+              setSubjects={setSubjects}
               availableClasses={availableClasses}
               activeExamId={activeExamId}
               setActiveExamId={setActiveExamId}
               onNavigateToExamTab={() => setActiveTab(1)}
+              onNavigateToSeatingPlan={() => setActiveTab(5)}
             />
           )}
 

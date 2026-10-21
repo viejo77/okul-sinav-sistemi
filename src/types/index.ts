@@ -24,6 +24,20 @@ export interface Exam {
   assignedClasses: ExamClassAssignment[];
 }
 
+export interface BoardExamItem {
+  id: string;
+  date: string; // ISO format "2024-11-04" or TR "04.11.2024"
+  dayOfWeek: string; // "Pazartesi", "Salı", etc.
+  period: number; // 1, 2, 3...
+  periodLabel: string; // "2. Ders (09:30 - 10:10)"
+  grade9Subject: string; // "Türk Dili ve Edebiyatı" or "-"
+  grade10Subject: string; // "Türk Dili ve Edebiyatı" or "-"
+  grade11Subject: string; // "Türk Dili ve Edebiyatı" or "-"
+  grade12Subject: string; // "Türk Dili ve Edebiyatı" or "-"
+  examType?: string; // "Kelebek Sistemi"
+  notes?: string;
+}
+
 export interface Student {
   id: string;
   number: string; // Okul No

@@ -65,13 +65,20 @@ export const SeatingPlanSection: React.FC<Props> = ({
   // Run Butterfly Algorithm
   const handleGenerate = () => {
     if (!activeExam) {
-      alert('Lütfen önce Sınav Tanımlama bölümünden bir sınav seçiniz.');
+      setErrorMessage('Lütfen önce Sınav Tanımlama bölümünden bir sınav seçiniz.');
       return;
     }
-    if (!subject) {
-      alert('Sınava ait ders tanımı bulunamadı.');
-      return;
-    }
+
+    // Always resolve a safe subject (by subjectId, subjectName or assignedClasses) so distribution never fails
+    const safeSubject: Subject = subject || {
+      id: activeExam.subjectId || 'sub-auto',
+      name:
+        activeExam.subjectName ||
+        (activeExam.assignedClasses && activeExam.assignedClasses[0]?.subjectName) ||
+        'Ortak Sınav',
+      code: 'ORT',
+      teachers: [],
+    };
 
     try {
       setIsGenerating(true);
@@ -79,7 +86,7 @@ export const SeatingPlanSection: React.FC<Props> = ({
 
       const plan = generateKelebekPlan({
         exam: activeExam,
-        subject,
+        subject: safeSubject,
         students,
         classrooms,
         teachers,

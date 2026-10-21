@@ -185,6 +185,52 @@ export const ExamDefinitionSection: React.FC<Props> = ({
     }
   };
 
+  // Directly Add as a New Exam without overwriting current active exam
+  const handleAddNewExamDirectly = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!examName.trim()) {
+      showToast('Lütfen sınav adını giriniz.');
+      return;
+    }
+
+    const isoDate = parseTRDate(examDateInput);
+    const match = examPeriodInput.match(/\d+/);
+    const parsedPeriod = match ? parseInt(match[0], 10) : 3;
+
+    // Detect day of week
+    let detectedDay: Exam['dayOfWeek'] = 'Pazartesi';
+    try {
+      const dt = new Date(isoDate);
+      const dNum = dt.getDay();
+      const map: Record<number, Exam['dayOfWeek']> = {
+        1: 'Pazartesi',
+        2: 'Salı',
+        3: 'Çarşamba',
+        4: 'Perşembe',
+        5: 'Cuma',
+      };
+      if (map[dNum]) detectedDay = map[dNum];
+    } catch {
+      // ignore
+    }
+
+    const newId = `exam-${Date.now()}`;
+    const newExam: Exam = {
+      id: newId,
+      name: examName.trim(),
+      date: isoDate,
+      dayOfWeek: detectedDay,
+      period: parsedPeriod,
+      periodLabel: examPeriodInput.trim() || `${parsedPeriod}. Ders`,
+      subjectId: subjects[0]?.id || '',
+      subjectName: subjects[0]?.name || '',
+      assignedClasses: [],
+    };
+    setExams(prev => [...prev, newExam]);
+    setActiveExamId(newId);
+    showToast(`"${examName.trim()}" yeni sınav olarak eklendi! Toplam ${exams.length + 1} sınav mevcut.`);
+  };
+
   // Add / Switch Exam
   const handleCreateNewExam = () => {
     const newId = `exam-${Date.now()}`;
@@ -602,13 +648,50 @@ export const ExamDefinitionSection: React.FC<Props> = ({
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-lg text-xs shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>Sınav Bilgilerini Kaydet</span>
-            </button>
+            <div className="flex gap-1.5 pt-1">
+              <button
+                type="submit"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-2 rounded-lg text-xs shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
+                title="Şu an seçili olan aktif sınavın bilgilerini günceller"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Seçiliyi Güncelle</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddNewExamDirectly}
+                className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-2 rounded-lg text-xs shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
+                title="Mevcut sınavı ezmeden, yeni bir sınav olarak listeye ekler"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Yeni Sınav Ekle</span>
+              </button>
+            </div>
+
+            {/* Quick list of all defined exams chips */}
+            <div className="pt-2 border-t border-sky-100">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1">
+                <span>Tüm Tanımlı Sınavlar ({exams.length}):</span>
+              </div>
+              <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pr-0.5">
+                {exams.map((ex, idx) => (
+                  <button
+                    key={ex.id}
+                    type="button"
+                    onClick={() => setActiveExamId(ex.id)}
+                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition cursor-pointer truncate max-w-full text-left ${
+                      ex.id === activeExamId
+                        ? 'bg-sky-600 text-white shadow-2xs'
+                        : 'bg-slate-100 hover:bg-sky-100 text-slate-700 border border-slate-200'
+                    }`}
+                    title={`${ex.name} (${formatToTRDate(ex.date)})`}
+                  >
+                    {idx + 1}. {ex.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           </form>
         </div>
 

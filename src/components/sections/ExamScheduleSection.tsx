@@ -1,12 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   Clock,
   Printer,
-  Download,
   School,
-  FileText,
-  Filter,
   Plus,
   Edit2,
   Trash2,
@@ -14,37 +11,183 @@ import {
   Info,
   CheckCircle2,
   Users,
-  Layers,
   ChevronRight,
+  ArrowRight,
   BookOpen,
+  Send,
+  Save,
+  RotateCcw,
+  X,
 } from 'lucide-react';
-import { Exam, Subject } from '../../types';
+import { Exam, Subject, BoardExamItem, ExamClassAssignment } from '../../types';
 
 interface ExamScheduleSectionProps {
   exams: Exam[];
   setExams: React.Dispatch<React.SetStateAction<Exam[]>>;
   subjects: Subject[];
+  setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
   availableClasses: string[];
   activeExamId: string;
   setActiveExamId: (id: string) => void;
   onNavigateToExamTab: () => void;
+  onNavigateToSeatingPlan?: () => void;
 }
+
+// Initial realistic default board exam sessions
+const initialBoardSessions: BoardExamItem[] = [
+  {
+    id: 'bs-1',
+    date: '2024-11-04',
+    dayOfWeek: 'Pazartesi',
+    period: 2,
+    periodLabel: '2. Ders (09:30 - 10:10)',
+    grade9Subject: 'Türk Dili ve Edebiyatı',
+    grade10Subject: 'Türk Dili ve Edebiyatı',
+    grade11Subject: 'Türk Dili ve Edebiyatı',
+    grade12Subject: 'Türk Dili ve Edebiyatı',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-2',
+    date: '2024-11-04',
+    dayOfWeek: 'Pazartesi',
+    period: 5,
+    periodLabel: '5. Ders (11:50 - 12:30)',
+    grade9Subject: 'Din Kültürü ve Ahlak Bilgisi',
+    grade10Subject: 'Din Kültürü ve Ahlak Bilgisi',
+    grade11Subject: 'Din Kültürü ve Ahlak Bilgisi',
+    grade12Subject: 'Din Kültürü ve Ahlak Bilgisi',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-3',
+    date: '2024-11-05',
+    dayOfWeek: 'Salı',
+    period: 3,
+    periodLabel: '3. Ders (10:20 - 11:00)',
+    grade9Subject: 'Tarih',
+    grade10Subject: 'Tarih',
+    grade11Subject: 'Tarih',
+    grade12Subject: 'T.C. İnkılap Tarihi',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-4',
+    date: '2024-11-05',
+    dayOfWeek: 'Salı',
+    period: 6,
+    periodLabel: '6. Ders (13:10 - 13:50)',
+    grade9Subject: 'Coğrafya',
+    grade10Subject: 'Coğrafya',
+    grade11Subject: '— (Ders İşlenecek)',
+    grade12Subject: '— (Ders İşlenecek)',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-5',
+    date: '2024-11-06',
+    dayOfWeek: 'Çarşamba',
+    period: 3,
+    periodLabel: '3. Ders (10:20 - 11:00)',
+    grade9Subject: 'Matematik',
+    grade10Subject: 'Matematik',
+    grade11Subject: 'Matematik',
+    grade12Subject: 'Matematik',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-6',
+    date: '2024-11-07',
+    dayOfWeek: 'Perşembe',
+    period: 2,
+    periodLabel: '2. Ders (09:30 - 10:10)',
+    grade9Subject: 'Fizik',
+    grade10Subject: 'Fizik',
+    grade11Subject: 'Fizik',
+    grade12Subject: 'Felsefe',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-7',
+    date: '2024-11-07',
+    dayOfWeek: 'Perşembe',
+    period: 5,
+    periodLabel: '5. Ders (11:50 - 12:30)',
+    grade9Subject: 'Kimya',
+    grade10Subject: 'Kimya',
+    grade11Subject: 'Kimya',
+    grade12Subject: '— (Ders İşlenecek)',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-8',
+    date: '2024-11-08',
+    dayOfWeek: 'Cuma',
+    period: 3,
+    periodLabel: '3. Ders (10:20 - 11:00)',
+    grade9Subject: 'İngilizce',
+    grade10Subject: 'İngilizce',
+    grade11Subject: 'İngilizce',
+    grade12Subject: 'İngilizce',
+    examType: 'Kelebek Sistemi',
+  },
+  {
+    id: 'bs-9',
+    date: '2024-11-08',
+    dayOfWeek: 'Cuma',
+    period: 5,
+    periodLabel: '5. Ders (11:50 - 12:30)',
+    grade9Subject: 'Biyoloji',
+    grade10Subject: 'Biyoloji',
+    grade11Subject: 'Biyoloji',
+    grade12Subject: '— (Ders İşlenecek)',
+    examType: 'Kelebek Sistemi',
+  },
+];
 
 export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
   exams,
   setExams,
   subjects,
+  setSubjects,
   availableClasses,
   activeExamId,
   setActiveExamId,
   onNavigateToExamTab,
+  onNavigateToSeatingPlan,
 }) => {
-  // Pano ayarları (yerel hafızadan veya varsayılan)
+  // Pano Sınav Oturumları (Kullanıcının 10 gün önceden bağımsız hazırladığı takvim)
+  const [boardSessions, setBoardSessions] = useState<BoardExamItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('school_board_exam_schedule');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return initialBoardSessions;
+  });
+
+  // Save board sessions to localStorage whenever changed
+  useEffect(() => {
+    try {
+      localStorage.setItem('school_board_exam_schedule', JSON.stringify(boardSessions));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [boardSessions]);
+
+  // Pano Resmi Başlık & İdare Bilgileri
   const [schoolName, setSchoolName] = useState<string>(() => {
     return localStorage.getItem('school_name_schedule') || 'ŞEHİT MEHMET ŞENGÜL ANADOLU LİSESİ';
   });
   const [academicYearTerm, setAcademicYearTerm] = useState<string>(() => {
-    return localStorage.getItem('term_name_schedule') || '2024-2025 EĞİTİM ÖĞRETİM YILI 1. DÖNEM 1. ORTAK SINAV TAKVİMİ';
+    return (
+      localStorage.getItem('term_name_schedule') ||
+      '2024-2025 EĞİTİM ÖĞRETİM YILI 1. DÖNEM 1. ORTAK SINAV TAKVİMİ'
+    );
   });
   const [principalName, setPrincipalName] = useState<string>(() => {
     return localStorage.getItem('principal_name_schedule') || 'Ahmet YILMAZ';
@@ -52,39 +195,161 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
   const [vicePrincipalName, setVicePrincipalName] = useState<string>(() => {
     return localStorage.getItem('vp_name_schedule') || 'Mehmet KAYA';
   });
+  // İmzaların altındaki tarih (Yıl değiştirilebilir)
+  const [approvalDate, setApprovalDate] = useState<string>(() => {
+    return localStorage.getItem('approval_date_schedule') || '24.10.2024';
+  });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('ALL'); // ALL, 9, 10, 11, 12
-  const [viewMode, setViewMode] = useState<'TABLE' | 'CARDS' | 'BY_GRADE'>('TABLE');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Save settings to localStorage
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Modal State for Adding/Editing a Session
+  const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+
+  // Form State
+  const [formDate, setFormDate] = useState('2024-11-04');
+  const [formDayOfWeek, setFormDayOfWeek] = useState('Pazartesi');
+  const [formPeriod, setFormPeriod] = useState(2);
+  const [formPeriodLabel, setFormPeriodLabel] = useState('2. Ders (09:30 - 10:10)');
+  const [formG9, setFormG9] = useState('Türk Dili ve Edebiyatı');
+  const [formG10, setFormG10] = useState('Türk Dili ve Edebiyatı');
+  const [formG11, setFormG11] = useState('Türk Dili ve Edebiyatı');
+  const [formG12, setFormG12] = useState('Türk Dili ve Edebiyatı');
+  const [formExamType, setFormExamType] = useState('Kelebek Sistemi');
+
+  // Helper: Automatically set day of week from date
+  const handleDateChange = (val: string) => {
+    setFormDate(val);
+    try {
+      const d = new Date(val);
+      const dayIndex = d.getDay();
+      const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+      if (days[dayIndex]) {
+        setFormDayOfWeek(days[dayIndex]);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Open modal for new session
+  const handleOpenNewSession = () => {
+    setEditingSessionId(null);
+    setFormDate(new Date().toISOString().split('T')[0]);
+    handleDateChange(new Date().toISOString().split('T')[0]);
+    setFormPeriod(3);
+    setFormPeriodLabel('3. Ders (10:20 - 11:00)');
+    setFormG9('Matematik');
+    setFormG10('Matematik');
+    setFormG11('Matematik');
+    setFormG12('Matematik');
+    setFormExamType('Kelebek Sistemi');
+    setSessionModalOpen(true);
+  };
+
+  // Open modal for editing existing session
+  const handleOpenEditSession = (session: BoardExamItem) => {
+    setEditingSessionId(session.id);
+    setFormDate(session.date);
+    setFormDayOfWeek(session.dayOfWeek);
+    setFormPeriod(session.period);
+    setFormPeriodLabel(session.periodLabel);
+    setFormG9(session.grade9Subject || '— (Ders İşlenecek)');
+    setFormG10(session.grade10Subject || '— (Ders İşlenecek)');
+    setFormG11(session.grade11Subject || '— (Ders İşlenecek)');
+    setFormG12(session.grade12Subject || '— (Ders İşlenecek)');
+    setFormExamType(session.examType || 'Kelebek Sistemi');
+    setSessionModalOpen(true);
+  };
+
+  // Save session from modal
+  const handleSaveSession = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formDate) {
+      showToast('Lütfen bir sınav tarihi giriniz.');
+      return;
+    }
+
+    if (editingSessionId) {
+      setBoardSessions(prev =>
+        prev.map(s =>
+          s.id === editingSessionId
+            ? {
+                ...s,
+                date: formDate,
+                dayOfWeek: formDayOfWeek,
+                period: formPeriod,
+                periodLabel: formPeriodLabel.trim() || `${formPeriod}. Ders`,
+                grade9Subject: formG9.trim(),
+                grade10Subject: formG10.trim(),
+                grade11Subject: formG11.trim(),
+                grade12Subject: formG12.trim(),
+                examType: formExamType,
+              }
+            : s
+        )
+      );
+      showToast('Sınav oturumu güncellendi.');
+    } else {
+      const newSession: BoardExamItem = {
+        id: `bs-${Date.now()}`,
+        date: formDate,
+        dayOfWeek: formDayOfWeek,
+        period: formPeriod,
+        periodLabel: formPeriodLabel.trim() || `${formPeriod}. Ders`,
+        grade9Subject: formG9.trim(),
+        grade10Subject: formG10.trim(),
+        grade11Subject: formG11.trim(),
+        grade12Subject: formG12.trim(),
+        examType: formExamType,
+      };
+      setBoardSessions(prev => [...prev, newSession]);
+      showToast('Yeni sınav oturumu takvime eklendi.');
+    }
+    setSessionModalOpen(false);
+  };
+
+  // Delete session
+  const handleDeleteSession = (id: string) => {
+    setBoardSessions(prev => prev.filter(s => s.id !== id));
+    showToast('Sınav oturumu takvimden silindi.');
+  };
+
+  // Save board settings
   const handleSaveSettings = () => {
     localStorage.setItem('school_name_schedule', schoolName);
     localStorage.setItem('term_name_schedule', academicYearTerm);
     localStorage.setItem('principal_name_schedule', principalName);
     localStorage.setItem('vp_name_schedule', vicePrincipalName);
+    localStorage.setItem('approval_date_schedule', approvalDate);
     setIsSettingsOpen(false);
+    showToast('Pano başlık ve onay bilgileri kaydedildi.');
   };
 
-  // Sort exams chronologically by date and period
-  const sortedExams = useMemo(() => {
-    return [...exams].sort((a, b) => {
+  // Reset to default sample board schedule
+  const handleResetToSampleBoard = () => {
+    setBoardSessions(initialBoardSessions);
+    showToast('Pano takvimi zengin örnek okul sınav haftasıyla yenilendi.');
+  };
+
+  // Sort sessions chronologically
+  const sortedSessions = useMemo(() => {
+    return [...boardSessions].sort((a, b) => {
       if (a.date !== b.date) {
         return a.date.localeCompare(b.date);
       }
       return (a.period || 0) - (b.period || 0);
     });
-  }, [exams]);
+  }, [boardSessions]);
 
-  // Extract distinct dates
-  const distinctDates = useMemo(() => {
-    return Array.from(new Set(sortedExams.map(e => e.date))).sort();
-  }, [sortedExams]);
-
-  // Extract all grade levels present across exams
-  const gradeLevels = ['9. Sınıf', '10. Sınıf', '11. Sınıf', '12. Sınıf'];
-
-  // Helper to format date TR
+  // Format Date TR
   const formatTRDate = (isoDate: string): string => {
     if (!isoDate) return '';
     if (isoDate.includes('.')) return isoDate;
@@ -95,27 +360,129 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
     return isoDate;
   };
 
-  // Helper to find which subject a grade is taking in an exam
-  const getSubjectForGrade = (exam: Exam, grade: string): string | null => {
-    const match = exam.assignedClasses.find(ac => {
-      // Normalize: "9-A" or "AMP 9-A" matches "9. Sınıf"
-      const gradeNum = grade.split('.')[0].trim();
-      return (
-        ac.classLevel.startsWith(`${gradeNum}-`) ||
-        ac.classLevel.includes(` ${gradeNum}-`) ||
-        ac.classLevel.startsWith(gradeNum)
-      );
-    });
-    return match ? (match.subjectName || exam.subjectName) : null;
-  };
+  // --- 🚀 TRANSFER BOARD SCHEDULE TO EXAM PROGRAM (CRITICAL USER REQUEST) ---
+  const handleTransferToExamProgram = () => {
+    if (boardSessions.length === 0) {
+      showToast('Aktarılacak sınav oturumu bulunamadı. Lütfen önce takvime sınav ekleyiniz.');
+      return;
+    }
 
-  // Direct print noticeboard schedule
-  const handlePrintSchedule = () => {
-    window.print();
+    // 1. Collect all distinct subjects from board sessions and ensure they exist in subjects state
+    const distinctSubjectNames = new Set<string>();
+    boardSessions.forEach(s => {
+      [s.grade9Subject, s.grade10Subject, s.grade11Subject, s.grade12Subject].forEach(name => {
+        if (name && name !== '— (Ders İşlenecek)' && name !== '-' && name.trim().length > 0) {
+          distinctSubjectNames.add(name.trim());
+        }
+      });
+    });
+
+    // Create missing subjects
+    const updatedSubjects = [...subjects];
+    distinctSubjectNames.forEach(subName => {
+      const exists = updatedSubjects.some(
+        s => s.name.trim().toLowerCase() === subName.toLowerCase()
+      );
+      if (!exists) {
+        updatedSubjects.push({
+          id: `sub-auto-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: subName,
+          code: subName.substring(0, 3).toUpperCase(),
+          teachers: [],
+        });
+      }
+    });
+    setSubjects(updatedSubjects);
+
+    // 2. Generate Exam objects for each board session
+    const classesToUse =
+      availableClasses.length > 0
+        ? availableClasses
+        : ['9-A', '9-B', '10-A', '10-B', '11-A', '11-B', '12-A'];
+
+    const newExams: Exam[] = sortedSessions.map((session, idx) => {
+      // Find primary subject name
+      const primarySubjectName =
+        [
+          session.grade9Subject,
+          session.grade10Subject,
+          session.grade11Subject,
+          session.grade12Subject,
+        ].find(n => n && n !== '— (Ders İşlenecek)' && n !== '-') || 'Ortak Sınav';
+
+      const foundSubject = updatedSubjects.find(
+        s => s.name.trim().toLowerCase() === primarySubjectName.toLowerCase()
+      );
+      const subjectId = foundSubject ? foundSubject.id : updatedSubjects[0]?.id || `sub-gen-${idx}`;
+
+      // Assign classes based on their grade level
+      const assignedClasses: ExamClassAssignment[] = [];
+
+      classesToUse.forEach(cls => {
+        // e.g. "9-A" or "AMP 9-A" -> level is "9"
+        let gradeSubject = '';
+        if (cls.includes('9-') || cls.startsWith('9')) {
+          gradeSubject = session.grade9Subject;
+        } else if (cls.includes('10-') || cls.startsWith('10')) {
+          gradeSubject = session.grade10Subject;
+        } else if (cls.includes('11-') || cls.startsWith('11')) {
+          gradeSubject = session.grade11Subject;
+        } else if (cls.includes('12-') || cls.startsWith('12')) {
+          gradeSubject = session.grade12Subject;
+        }
+
+        // Only assign if this grade actually has an exam
+        if (
+          gradeSubject &&
+          gradeSubject !== '— (Ders İşlenecek)' &&
+          gradeSubject !== '-' &&
+          gradeSubject.trim().length > 0
+        ) {
+          const subObj = updatedSubjects.find(
+            s => s.name.trim().toLowerCase() === gradeSubject.toLowerCase()
+          );
+          assignedClasses.push({
+            id: `ac-${session.id}-${cls}`,
+            classLevel: cls,
+            subjectId: subObj ? subObj.id : subjectId,
+            subjectName: gradeSubject,
+          });
+        }
+      });
+
+      return {
+        id: `exam-board-${session.id}`,
+        name: `${formatTRDate(session.date)} ${session.dayOfWeek} ${session.periodLabel} - ${primarySubjectName}`,
+        date: session.date,
+        dayOfWeek: session.dayOfWeek as any,
+        period: session.period,
+        periodLabel: session.periodLabel,
+        subjectId,
+        subjectName: primarySubjectName,
+        assignedClasses,
+      };
+    });
+
+    setExams(newExams);
+    if (newExams.length > 0) {
+      setActiveExamId(newExams[0].id);
+    }
+
+    showToast(
+      `🎉 Pano takvimindeki ${newExams.length} sınav başarıyla Sınav Programına aktarıldı!`
+    );
   };
 
   return (
     <div className="flex flex-col space-y-3 pb-8">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-18 right-6 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* 1. TOP HEADER & ACTION TOOLBAR (Hidden in Print) */}
       <div className="no-print bg-white rounded-xl p-3 sm:p-4 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -125,76 +492,58 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="bg-purple-100 text-purple-800 font-black px-2 py-0.5 rounded text-[11px] shrink-0">
-                PANO İLANI
+                PANO İLAN MERKEZİ
               </span>
               <h2 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-                Ortak Sınav Takvimi & Pano Çizelgesi
+                Okul Ortak Sınav Takvimi & Pano İlanı
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Okul panolarına, sınıflara ve öğretmenler odasına asılmak üzere hangi gün, hangi ders saatinde, hangi sınıfların hangi sınavlarının olduğunu duyurma merkezi.
+              Sınavlardan 10 gün önce hazırlanarak öğrenci ve öğretmen panolarına asılacak resmi sınav ilanı çizelgesi.
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* View mode toggle */}
-          <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center text-xs">
-            <button
-              onClick={() => setViewMode('TABLE')}
-              className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer ${
-                viewMode === 'TABLE' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🏢 Pano Tablosu
-            </button>
-            <button
-              onClick={() => setViewMode('BY_GRADE')}
-              className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer ${
-                viewMode === 'BY_GRADE' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🎓 Sınıf Bazlı Pano
-            </button>
-            <button
-              onClick={() => setViewMode('CARDS')}
-              className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer ${
-                viewMode === 'CARDS' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🗓️ Günlük Kartlar
-            </button>
-          </div>
+          {/* Add Session */}
+          <button
+            onClick={handleOpenNewSession}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-2xs transition cursor-pointer"
+            title="Takvime yeni gün ve sınav saati ekle"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Sınav Saati Ekle</span>
+          </button>
 
-          {/* Settings Button */}
+          {/* Transfer to Exam Program Button */}
+          <button
+            onClick={handleTransferToExamProgram}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            title="Takvime girdiğiniz tüm sınavları tek tıkla kelebek oturma düzeni programına aktarır"
+          >
+            <Send className="w-3.5 h-3.5 text-amber-300" />
+            <span>Sınav Programına Aktar</span>
+          </button>
+
+          {/* School & Signature Settings Button */}
           <button
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition cursor-pointer"
-            title="Okul adı, onaylayan müdür ve başlık bilgilerini özelleştir"
+            title="Okul adı, onay tarihi, yıl ve müdür imza bilgilerini özelleştir"
           >
             <School className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Pano Başlığı & İdare</span>
-          </button>
-
-          {/* New Exam Shortcut */}
-          <button
-            onClick={onNavigateToExamTab}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition cursor-pointer"
-            title="Yeni Sınav Ekle / Düzenle"
-          >
-            <Plus className="w-3.5 h-3.5 text-purple-600" />
-            <span>Yeni Sınav Tanımla</span>
+            <span>Pano Başlığı & İdare Onayı</span>
           </button>
 
           {/* Primary Print Button */}
           <button
-            onClick={handlePrintSchedule}
-            className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
             title="Resmi MEB A4 formatında panoya asılacak sınav takvimini yazdır veya PDF olarak indir"
           >
             <Printer className="w-4 h-4" />
-            <span>🖨️ Panoya Asmak İçin Yazdır / PDF İndir</span>
+            <span>🖨️ Panoya Asmak İçin Yazdır / PDF</span>
           </button>
         </div>
       </div>
@@ -208,29 +557,29 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
               <span>Resmi Pano İlanı & İdare Onay Bilgileri</span>
             </h4>
             <span className="text-[11px] text-indigo-700 font-medium">
-              Bu bilgiler panoya asılacak belgenin üst ve alt antetinde yer alır.
+              İmza altındaki tarih ve yıl dahil tüm bilgiler değiştirilebilir.
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="lg:col-span-2">
               <label className="block text-slate-700 font-bold mb-1">Okul Adı:</label>
               <input
                 type="text"
                 value={schoolName}
                 onChange={e => setSchoolName(e.target.value)}
-                placeholder="Örn: ATATÜRK ANADOLU LİSESİ"
+                placeholder="Örn: ŞEHİT MEHMET ŞENGÜL ANADOLU LİSESİ"
                 className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>
 
-            <div>
+            <div className="lg:col-span-3">
               <label className="block text-slate-700 font-bold mb-1">Dönem & Sınav Başlığı:</label>
               <input
                 type="text"
                 value={academicYearTerm}
                 onChange={e => setAcademicYearTerm(e.target.value)}
-                placeholder="Örn: 2024-2025 1. DÖNEM 1. ORTAK SINAV TAKVİMİ"
+                placeholder="Örn: 2024-2025 EĞİTİM ÖĞRETİM YILI 1. DÖNEM 1. ORTAK SINAV TAKVİMİ"
                 className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>
@@ -256,55 +605,77 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
                 className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>
-          </div>
 
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              onClick={() => setIsSettingsOpen(false)}
-              className="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-700 font-bold"
-            >
-              Vazgeç
-            </button>
-            <button
-              onClick={handleSaveSettings}
-              className="px-4 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-2xs"
-            >
-              Kaydet & Uygula
-            </button>
+            {/* Editable Approval Date / Year */}
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">
+                İmza & Onay Tarihi (Yıl/Tarih):
+              </label>
+              <input
+                type="text"
+                value={approvalDate}
+                onChange={e => setApprovalDate(e.target.value)}
+                placeholder="24.10.2024"
+                className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+
+            <div className="flex items-end gap-2 lg:col-span-2">
+              <button
+                onClick={handleResetToSampleBoard}
+                className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg font-bold transition"
+                title="Varsayılan örnek sınav haftası oturumlarını yükler"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Örnek Sınav Haftasını Yükle</span>
+              </button>
+
+              <button
+                onClick={handleSaveSettings}
+                className="flex items-center gap-1 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-2xs transition"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Kaydet</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 3. QUICK STATS SUMMARY BANNER (No Print) */}
-      <div className="no-print bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs">
-        <div className="flex items-center gap-3 text-slate-600 font-semibold flex-wrap">
-          <span>
-            📋 Toplam Sınav Sayısı: <strong className="text-slate-900 font-mono">{exams.length}</strong>
-          </span>
-          <span>•</span>
-          <span>
-            📅 Sınav Günleri: <strong className="text-indigo-700 font-mono">{distinctDates.length} Gün</strong>
-          </span>
-          <span>•</span>
-          <span>
-            👥 Dahil Sınıflar: <strong className="text-purple-700 font-mono">{availableClasses.length || 'Tüm Şubeler'}</strong>
-          </span>
+      {/* 3. SYNC BANNER WITH EXAM PROGRAM */}
+      <div className="no-print bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold shrink-0">
+            <Sparkles className="w-4 h-4 text-amber-300" />
+          </div>
+          <div>
+            <div className="font-extrabold text-slate-900">
+              Pano Takvimindeki Sınavları Oturma Düzeni Programına Aktarın
+            </div>
+            <div className="text-slate-500 text-[11px]">
+              Panoya asmak için belirlediğiniz bu dersleri <strong>&quot;Sınav Programına Aktar&quot;</strong> butonuna basarak tek tıkla kelebek oturma düzeni motoruna gönderebilirsiniz.
+            </div>
+          </div>
         </div>
 
-        {/* Grade filter */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-500 font-bold text-[11px]">Kademeye Göre Filtrele:</span>
-          <select
-            value={selectedGradeFilter}
-            onChange={e => setSelectedGradeFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleTransferToExamProgram}
+            className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg transition shadow-xs cursor-pointer"
           >
-            <option value="ALL">Tüm Sınıflar (9, 10, 11, 12)</option>
-            <option value="9">Sadece 9. Sınıflar</option>
-            <option value="10">Sadece 10. Sınıflar</option>
-            <option value="11">Sadece 11. Sınıflar</option>
-            <option value="12">Sadece 12. Sınıflar</option>
-          </select>
+            <Send className="w-3.5 h-3.5" />
+            <span>Takvimi Sınav Programına Aktar</span>
+          </button>
+
+          {onNavigateToSeatingPlan && (
+            <button
+              onClick={onNavigateToSeatingPlan}
+              className="flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition cursor-pointer"
+            >
+              <span>5. Oturma Düzenine Git</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -326,208 +697,125 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
           </div>
         </div>
 
-        {/* View Mode 1: MEB Standard Pano Tablosu (Master Schedule Matrix) */}
-        {viewMode === 'TABLE' && (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border-2 border-slate-800 text-xs">
-              <thead>
-                <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-900 font-black text-center uppercase tracking-wider text-[11px]">
-                  <th className="border border-slate-800 p-2 w-10">S.No</th>
-                  <th className="border border-slate-800 p-2 w-32">Sınav Tarihi & Gün</th>
-                  <th className="border border-slate-800 p-2 w-36">Ders Saati</th>
-                  {gradeLevels
-                    .filter(g => selectedGradeFilter === 'ALL' || g.startsWith(selectedGradeFilter))
-                    .map(grade => (
-                      <th key={grade} className="border border-slate-800 p-2 font-black">
-                        {grade}
-                      </th>
-                    ))}
-                  <th className="border border-slate-800 p-2 w-28">Sınav Şekli</th>
+        {/* Master Noticeboard Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse border-2 border-slate-800 text-xs">
+            <thead>
+              <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-900 font-black text-center uppercase tracking-wider text-[11px]">
+                <th className="border border-slate-800 p-2 w-10">S.No</th>
+                <th className="border border-slate-800 p-2 w-32">Sınav Tarihi & Gün</th>
+                <th className="border border-slate-800 p-2 w-36">Ders Saati</th>
+                <th className="border border-slate-800 p-2 font-black">9. Sınıflar</th>
+                <th className="border border-slate-800 p-2 font-black">10. Sınıflar</th>
+                <th className="border border-slate-800 p-2 font-black">11. Sınıflar</th>
+                <th className="border border-slate-800 p-2 font-black">12. Sınıflar</th>
+                <th className="border border-slate-800 p-2 w-28">Sınav Şekli</th>
+                <th className="border border-slate-800 p-2 w-20 no-print">İşlem</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {sortedSessions.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-slate-400 italic">
+                    Henüz takvime sınav oturumu eklenmedi. Yukarıdaki <strong>&quot;+ Sınav Saati Ekle&quot;</strong> butonuna basarak ilk sınavınızı ekleyebilirsiniz.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {sortedExams.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400 italic">
-                      Henüz tanımlanmış bir sınav bulunamadı. Yukarıdaki &quot;Yeni Sınav Tanımla&quot; butonundan veya &quot;Veri Yönetimi &gt; Demo Veri Yükle&quot; seçeneğinden sınavları ekleyebilirsiniz.
-                    </td>
-                  </tr>
-                ) : (
-                  sortedExams.map((exam, idx) => {
-                    return (
-                      <tr key={exam.id} className="hover:bg-purple-50/30 transition text-center font-medium">
-                        <td className="border border-slate-800 p-2 font-mono font-bold text-slate-500">
-                          {idx + 1}
-                        </td>
-                        <td className="border border-slate-800 p-2 font-bold text-slate-900 bg-slate-50/60">
-                          <div>{formatTRDate(exam.date)}</div>
-                          <div className="text-[11px] text-purple-700 font-extrabold">{exam.dayOfWeek}</div>
-                        </td>
-                        <td className="border border-slate-800 p-2 font-black text-indigo-950">
-                          <div className="bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md text-[11.5px]">
-                            {exam.periodLabel || `${exam.period}. Ders Saati`}
-                          </div>
-                        </td>
-
-                        {/* Grade Columns */}
-                        {gradeLevels
-                          .filter(g => selectedGradeFilter === 'ALL' || g.startsWith(selectedGradeFilter))
-                          .map(grade => {
-                            const subject = getSubjectForGrade(exam, grade);
-                            return (
-                              <td
-                                key={grade}
-                                className={`border border-slate-800 p-2 text-center ${
-                                  subject ? 'bg-amber-50/50' : 'bg-slate-50/30 text-slate-400'
-                                }`}
-                              >
-                                {subject ? (
-                                  <div className="font-black text-slate-900 text-xs sm:text-[13px] uppercase">
-                                    {subject}
-                                  </div>
-                                ) : (
-                                  <span className="text-[11px] text-slate-400 italic">
-                                    — (Ders İşlenecek)
-                                  </span>
-                                )}
-                              </td>
-                            );
-                          })}
-
-                        <td className="border border-slate-800 p-2 text-[11px] font-bold text-slate-700 bg-slate-50/50">
-                          Kelebek Sistemi
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* View Mode 2: Sınıf Bazlı Pano Çizelgesi (By Grade Cards) */}
-        {viewMode === 'BY_GRADE' && (
-          <div className="space-y-6">
-            {gradeLevels
-              .filter(g => selectedGradeFilter === 'ALL' || g.startsWith(selectedGradeFilter))
-              .map(grade => {
-                const gradeExams = sortedExams.filter(e => getSubjectForGrade(e, grade) !== null);
-                return (
-                  <div key={grade} className="border-2 border-slate-800 rounded-xl overflow-hidden shadow-2xs">
-                    <div className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between font-black text-xs sm:text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-purple-500 text-white px-2 py-0.5 rounded text-[11px]">
-                          PANO ÇİZELGESİ
-                        </span>
-                        <span>{grade.toUpperCase()} ORTAK SINAV TAKVİMİ</span>
-                      </div>
-                      <span className="font-mono text-purple-300 text-xs">
-                        {gradeExams.length} Sınav
-                      </span>
-                    </div>
-
-                    <table className="w-full border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-extrabold uppercase text-[10.5px]">
-                          <th className="p-2 text-center w-12 border-r border-slate-200">S.No</th>
-                          <th className="p-2 text-left w-36 border-r border-slate-200">Sınav Tarihi & Gün</th>
-                          <th className="p-2 text-center w-40 border-r border-slate-200">Ders Saati</th>
-                          <th className="p-2 text-left border-r border-slate-200">Sınav Yapılacak Ders</th>
-                          <th className="p-2 text-center w-32">Sınav Uygulaması</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-medium">
-                        {gradeExams.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="p-4 text-center text-slate-400 italic">
-                              Bu sınıf düzeyi için tanımlı sınav bulunmamaktadır.
-                            </td>
-                          </tr>
-                        ) : (
-                          gradeExams.map((exam, idx) => {
-                            const sub = getSubjectForGrade(exam, grade);
-                            return (
-                              <tr key={exam.id} className="hover:bg-slate-50">
-                                <td className="p-2 text-center font-mono font-bold text-slate-400 border-r border-slate-200">
-                                  {idx + 1}
-                                </td>
-                                <td className="p-2 font-bold text-slate-900 border-r border-slate-200">
-                                  {formatTRDate(exam.date)} - {exam.dayOfWeek}
-                                </td>
-                                <td className="p-2 text-center font-black text-indigo-900 border-r border-slate-200">
-                                  {exam.periodLabel || `${exam.period}. Ders Saati`}
-                                </td>
-                                <td className="p-2 font-black text-slate-900 text-xs sm:text-[13px] border-r border-slate-200">
-                                  {sub}
-                                </td>
-                                <td className="p-2 text-center font-bold text-slate-600">
-                                  Kelebek Dağıtım
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-          </div>
-        )}
-
-        {/* View Mode 3: Günlük Zaman Çizelgesi Kartları */}
-        {viewMode === 'CARDS' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {distinctDates.map(date => {
-              const dayExams = sortedExams.filter(e => e.date === date);
-              const dayName = dayExams[0]?.dayOfWeek || '';
-              return (
-                <div key={date} className="border-2 border-slate-800 rounded-xl p-4 bg-slate-50 shadow-2xs space-y-3">
-                  <div className="flex items-center justify-between border-b-2 border-slate-800 pb-2">
-                    <div>
-                      <div className="font-black text-sm text-slate-900">
-                        {formatTRDate(date)}
-                      </div>
-                      <div className="font-extrabold text-xs text-purple-700 uppercase">
-                        {dayName}
-                      </div>
-                    </div>
-                    <span className="bg-slate-900 text-white font-mono font-bold text-[11px] px-2.5 py-1 rounded-lg">
-                      {dayExams.length} Sınav Oturumu
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {dayExams.map(ex => (
-                      <div key={ex.id} className="bg-white border border-slate-300 rounded-lg p-3 shadow-2xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
-                            {ex.periodLabel || `${ex.period}. Ders`}
-                          </span>
-                          <span className="text-[11px] font-bold text-slate-500">
-                            Kelebek Düzeni
-                          </span>
+              ) : (
+                sortedSessions.map((session, idx) => {
+                  return (
+                    <tr
+                      key={session.id}
+                      className="hover:bg-purple-50/30 transition text-center font-medium"
+                    >
+                      <td className="border border-slate-800 p-2 font-mono font-bold text-slate-500">
+                        {idx + 1}
+                      </td>
+                      <td className="border border-slate-800 p-2 font-bold text-slate-900 bg-slate-50/60">
+                        <div>{formatTRDate(session.date)}</div>
+                        <div className="text-[11px] text-purple-700 font-extrabold">
+                          {session.dayOfWeek}
                         </div>
-                        <div className="font-extrabold text-sm text-slate-900 uppercase">
-                          {ex.subjectName}
+                      </td>
+                      <td className="border border-slate-800 p-2 font-black text-indigo-950">
+                        <div className="bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md text-[11.5px]">
+                          {session.periodLabel}
                         </div>
-                        <div className="text-[11px] text-slate-600 font-semibold flex flex-wrap gap-1 mt-1">
-                          <span className="text-slate-400">Giren Sınıflar:</span>
-                          {ex.assignedClasses.map(ac => (
-                            <span key={ac.id} className="bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-mono font-bold text-[10px]">
-                              {ac.classLevel}
-                            </span>
-                          ))}
+                      </td>
+
+                      {/* 9. Sınıf */}
+                      <td
+                        className={`border border-slate-800 p-2 text-center ${
+                          session.grade9Subject && session.grade9Subject !== '— (Ders İşlenecek)'
+                            ? 'bg-amber-50/60 font-black text-slate-900'
+                            : 'bg-slate-50/30 text-slate-400 italic'
+                        }`}
+                      >
+                        {session.grade9Subject || '— (Ders İşlenecek)'}
+                      </td>
+
+                      {/* 10. Sınıf */}
+                      <td
+                        className={`border border-slate-800 p-2 text-center ${
+                          session.grade10Subject && session.grade10Subject !== '— (Ders İşlenecek)'
+                            ? 'bg-amber-50/60 font-black text-slate-900'
+                            : 'bg-slate-50/30 text-slate-400 italic'
+                        }`}
+                      >
+                        {session.grade10Subject || '— (Ders İşlenecek)'}
+                      </td>
+
+                      {/* 11. Sınıf */}
+                      <td
+                        className={`border border-slate-800 p-2 text-center ${
+                          session.grade11Subject && session.grade11Subject !== '— (Ders İşlenecek)'
+                            ? 'bg-amber-50/60 font-black text-slate-900'
+                            : 'bg-slate-50/30 text-slate-400 italic'
+                        }`}
+                      >
+                        {session.grade11Subject || '— (Ders İşlenecek)'}
+                      </td>
+
+                      {/* 12. Sınıf */}
+                      <td
+                        className={`border border-slate-800 p-2 text-center ${
+                          session.grade12Subject && session.grade12Subject !== '— (Ders İşlenecek)'
+                            ? 'bg-amber-50/60 font-black text-slate-900'
+                            : 'bg-slate-50/30 text-slate-400 italic'
+                        }`}
+                      >
+                        {session.grade12Subject || '— (Ders İşlenecek)'}
+                      </td>
+
+                      <td className="border border-slate-800 p-2 text-[11px] font-bold text-slate-700 bg-slate-50/50">
+                        {session.examType || 'Kelebek Sistemi'}
+                      </td>
+
+                      {/* Row Actions (No Print) */}
+                      <td className="border border-slate-800 p-2 no-print">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handleOpenEditSession(session)}
+                            className="p-1 hover:bg-indigo-100 text-indigo-700 rounded transition"
+                            title="Düzenle"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSession(session.id)}
+                            className="p-1 hover:bg-rose-100 text-rose-700 rounded transition"
+                            title="Sil"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Official MEB Noticeboard Rules Box */}
         <div className="mt-6 border-2 border-slate-800 rounded-xl p-4 bg-slate-50 text-[11px] leading-relaxed text-slate-800">
@@ -554,13 +842,16 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
           </ol>
         </div>
 
-        {/* Official Signatures & Seal Area */}
+        {/* Official Signatures & Seal Area (With Editable Year and Date) */}
         <div className="mt-8 pt-4 border-t-2 border-slate-800 grid grid-cols-2 gap-8 text-center text-xs">
           <div>
             <div className="text-slate-600 font-semibold">İnceleyen / Düzenleyen</div>
             <div className="font-black text-slate-900 text-sm mt-1">{vicePrincipalName}</div>
             <div className="text-[11px] text-slate-500 font-medium">Müdür Yardımcısı</div>
-            <div className="mt-6 text-slate-400 font-mono text-[10px]">... / ... / 2024</div>
+            {/* Editable Date under signature */}
+            <div className="mt-6 font-mono text-[11px] text-slate-800 font-bold">
+              {approvalDate}
+            </div>
             <div className="text-slate-400 text-[10px]">İmza</div>
           </div>
 
@@ -568,11 +859,215 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
             <div className="text-slate-600 font-semibold">UYGUNDUR / ONAY</div>
             <div className="font-black text-slate-900 text-sm mt-1">{principalName}</div>
             <div className="text-[11px] text-slate-500 font-medium">Okul Müdürü</div>
-            <div className="mt-6 text-slate-400 font-mono text-[10px]">... / ... / 2024</div>
+            {/* Editable Date under signature */}
+            <div className="mt-6 font-mono text-[11px] text-slate-800 font-bold">
+              {approvalDate}
+            </div>
             <div className="text-slate-400 text-[10px]">İmza - Mühür</div>
           </div>
         </div>
       </div>
+
+      {/* 5. ADD / EDIT SESSION MODAL */}
+      {sessionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-purple-300" />
+                <h3 className="font-extrabold text-sm sm:text-base text-white">
+                  {editingSessionId ? 'Sınav Saati Oturumunu Düzenle' : 'Takvime Yeni Sınav Saati Ekle'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSessionModalOpen(false)}
+                className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSession} className="p-5 space-y-3.5 overflow-y-auto text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Date Input with picker */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Sınav Tarihi:
+                  </label>
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={e => handleDateChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    required
+                  />
+                </div>
+
+                {/* Day of Week */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Gün Adı:</label>
+                  <select
+                    value={formDayOfWeek}
+                    onChange={e => setFormDayOfWeek(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer"
+                  >
+                    <option value="Pazartesi">Pazartesi</option>
+                    <option value="Salı">Salı</option>
+                    <option value="Çarşamba">Çarşamba</option>
+                    <option value="Perşembe">Perşembe</option>
+                    <option value="Cuma">Cuma</option>
+                    <option value="Cumartesi">Cumartesi</option>
+                    <option value="Pazar">Pazar</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Period Number */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Ders Saati No:</label>
+                  <select
+                    value={formPeriod}
+                    onChange={e => {
+                      const p = parseInt(e.target.value, 10);
+                      setFormPeriod(p);
+                      const labels: Record<number, string> = {
+                        1: '1. Ders (08:40 - 09:20)',
+                        2: '2. Ders (09:30 - 10:10)',
+                        3: '3. Ders (10:20 - 11:00)',
+                        4: '4. Ders (11:10 - 11:50)',
+                        5: '5. Ders (11:50 - 12:30)',
+                        6: '6. Ders (13:10 - 13:50)',
+                        7: '7. Ders (14:00 - 14:40)',
+                        8: '8. Ders (14:50 - 15:30)',
+                      };
+                      if (labels[p]) setFormPeriodLabel(labels[p]);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-900 focus:outline-none cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                      <option key={num} value={num}>
+                        {num}. Ders Saati
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Period Label */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Ders Saati Etiketi & Saat Aralığı:
+                  </label>
+                  <input
+                    type="text"
+                    value={formPeriodLabel}
+                    onChange={e => setFormPeriodLabel(e.target.value)}
+                    placeholder="2. Ders (09:30 - 10:10)"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-900 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Grade-specific subjects */}
+              <div className="border border-purple-200 rounded-xl p-3 bg-purple-50/50 space-y-2.5">
+                <span className="font-extrabold text-purple-950 block text-[11.5px]">
+                  Bu Ders Saatinde Sınavı Yapılacak Dersler (Her Kademe İçin):
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-0.5">
+                      9. Sınıfların Sınav Dersi:
+                    </label>
+                    <input
+                      type="text"
+                      value={formG9}
+                      onChange={e => setFormG9(e.target.value)}
+                      placeholder="Örn: Türk Dili ve Edebiyatı (veya —)"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 font-semibold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-0.5">
+                      10. Sınıfların Sınav Dersi:
+                    </label>
+                    <input
+                      type="text"
+                      value={formG10}
+                      onChange={e => setFormG10(e.target.value)}
+                      placeholder="Örn: Türk Dili ve Edebiyatı (veya —)"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 font-semibold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-0.5">
+                      11. Sınıfların Sınav Dersi:
+                    </label>
+                    <input
+                      type="text"
+                      value={formG11}
+                      onChange={e => setFormG11(e.target.value)}
+                      placeholder="Örn: Türk Dili ve Edebiyatı (veya —)"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 font-semibold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-0.5">
+                      12. Sınıfların Sınav Dersi:
+                    </label>
+                    <input
+                      type="text"
+                      value={formG12}
+                      onChange={e => setFormG12(e.target.value)}
+                      placeholder="Örn: Türk Dili ve Edebiyatı (veya —)"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 font-semibold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 italic">
+                  * Eğer bir kademenin o saatte sınavı yoksa <strong>— (Ders İşlenecek)</strong> yazabilirsiniz.
+                </div>
+              </div>
+
+              {/* Exam Type */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Sınav Şekli:</label>
+                <select
+                  value={formExamType}
+                  onChange={e => setFormExamType(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-900 focus:outline-none cursor-pointer"
+                >
+                  <option value="Kelebek Sistemi">Kelebek Sistemi (Karma Salon Dağıtımı)</option>
+                  <option value="Ortak Sınav">Ortak Sınav (Kendi Sınıfında)</option>
+                  <option value="Ülke Geneli Ortak Sınav">MEB Ülke Geneli Ortak Sınav</option>
+                  <option value="İl Geneli Ortak Sınav">İl Geneli Ortak Sınav</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setSessionModalOpen(false)}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow-2xs transition"
+                >
+                  {editingSessionId ? 'Güncelle' : 'Takvime Ekle'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
