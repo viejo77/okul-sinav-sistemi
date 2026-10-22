@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Exam, Subject, BoardExamItem, ExamClassAssignment } from '../../types';
 import { exportToPdf, printElementDirectly } from '../../utils/pdfExport';
+import { formatPeriodWithTimes } from '../../services/periodTimes';
 
 interface ExamScheduleSectionProps {
   exams: Exam[];
@@ -316,7 +317,7 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
     setFormDate(new Date().toISOString().split('T')[0]);
     handleDateChange(new Date().toISOString().split('T')[0]);
     setFormPeriod(3);
-    setFormPeriodLabel('3. Ders (10:20 - 11:00)');
+    setFormPeriodLabel(formatPeriodWithTimes(3));
     setFormG9('Matematik');
     setFormG10('Matematik');
     setFormG11('Matematik');
@@ -1029,21 +1030,11 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
                     onChange={e => {
                       const p = parseInt(e.target.value, 10);
                       setFormPeriod(p);
-                      const labels: Record<number, string> = {
-                        1: '1. Ders (08:40 - 09:20)',
-                        2: '2. Ders (09:30 - 10:10)',
-                        3: '3. Ders (10:20 - 11:00)',
-                        4: '4. Ders (11:10 - 11:50)',
-                        5: '5. Ders (11:50 - 12:30)',
-                        6: '6. Ders (13:10 - 13:50)',
-                        7: '7. Ders (14:00 - 14:40)',
-                        8: '8. Ders (14:50 - 15:30)',
-                      };
-                      if (labels[p]) setFormPeriodLabel(labels[p]);
+                      setFormPeriodLabel(formatPeriodWithTimes(p));
                     }}
                     className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-900 focus:outline-none cursor-pointer"
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
                       <option key={num} value={num}>
                         {num}. Ders Saati
                       </option>

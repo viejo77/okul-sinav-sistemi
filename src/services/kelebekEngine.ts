@@ -29,20 +29,117 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
+export interface MultipleTeacherCandidate {
+  id: string;
+  name: string;
+  branch: string;
+  dutyCount: number;
+  dutyDay: string;
+}
+
+export interface MultipleTeacherConflict {
+  roomId: string;
+  roomName: string;
+  candidates: MultipleTeacherCandidate[];
+  recommendedTeacherId: string;
+}
+
 export interface KelebekEngineInput {
   exam: Exam;
   subject: Subject;
   students: Student[];
   classrooms: Classroom[];
   teachers: Teacher[];
+  savedPlans?: Record<string, SeatingPlanResult>;
+  preferredSupervisors?: Record<string, string>; // roomId -> teacherId or teacherName
+}
+
+/**
+ * Calculates how many times each teacher has served as supervisor across all saved exam plans.
+ */
+export function getTeacherSupervisorCounts(
+  teachers: Teacher[],
+  savedPlans?: Record<string, SeatingPlanResult>
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  teachers.forEach(t => {
+    counts.set(t.name.toLowerCase().trim(), 0);
+  });
+
+  if (savedPlans) {
+    Object.values(savedPlans).forEach(plan => {
+      if (plan && plan.rooms) {
+        plan.rooms.forEach(r => {
+          if (r.supervisorName && r.supervisorName !== 'Atanmadı' && !r.supervisorName.includes('Yetersiz')) {
+            const key = r.supervisorName.toLowerCase().trim();
+            counts.set(key, (counts.get(key) || 0) + 1);
+          }
+        });
+      }
+    });
+  }
+
+  return counts;
+}
+
+/**
+ * Detects exam rooms where multiple teachers are scheduled at the same day and period (team teaching / workshops).
+ */
+export function findMultipleTeacherConflicts(
+  activeRooms: Classroom[],
+  exam: Exam,
+  teachers: Teacher[],
+  commissionMembers: string[] = [],
+  savedPlans?: Record<string, SeatingPlanResult>
+): MultipleTeacherConflict[] {
+  const commissionSet = new Set(commissionMembers.map(m => m.toLowerCase().trim()));
+  const counts = getTeacherSupervisorCounts(teachers, savedPlans);
+  const conflicts: MultipleTeacherConflict[] = [];
+
+  for (const room of activeRooms) {
+    // Teachers with a lesson in this room at this day/period who are NOT on leave and NOT commission members
+    const matchingTeachers = teachers.filter(t => {
+      if (t.isLeave) return false;
+      if (commissionSet.has(t.name.toLowerCase().trim())) return false;
+      return t.schedule.some(
+        s =>
+          s.day === exam.dayOfWeek &&
+          s.period === exam.period &&
+          s.classroomName.toLowerCase().trim() === room.name.toLowerCase().trim()
+      );
+    });
+
+    if (matchingTeachers.length > 1) {
+      // Sort candidates by total supervisor duty count ascending (balanced load)
+      const candidates: MultipleTeacherCandidate[] = matchingTeachers
+        .map(t => ({
+          id: t.id,
+          name: t.name,
+          branch: t.branch,
+          dutyCount: counts.get(t.name.toLowerCase().trim()) || 0,
+          dutyDay: t.dutyDay || 'Yok',
+        }))
+        .sort((a, b) => a.dutyCount - b.dutyCount);
+
+      conflicts.push({
+        roomId: room.id,
+        roomName: room.name,
+        candidates,
+        recommendedTeacherId: candidates[0].id,
+      });
+    }
+  }
+
+  return conflicts;
 }
 
 export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResult {
-  const { exam, subject, students, classrooms, teachers } = input;
+  const { exam, subject, students, classrooms, teachers, savedPlans, preferredSupervisors } = input;
   const warnings: string[] = [];
 
   // 1. Identify Commission Members (Soru Hazırlayan/Branş Öğretmenleri)
   const commissionMembers = subject.teachers || [];
+  const commissionSet = new Set(commissionMembers.map(m => m.toLowerCase().trim()));
 
   // 2. Filter students who belong to the exam's assigned classes
   const assignedClassSet = new Set(
@@ -74,16 +171,46 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
     );
   }
 
-  // 4. Assign Supervisors (Gözetmen Atama Kuralı)
+  // 4. Assign Supervisors (Gözetmen Dağıtım Hiyerarşisi)
+  // Kural 1: O gün o saatte o salonda dersi olan öğretmen (Komisyon olmamak ve İzinli/Raporlu olmamak şartıyla)
+  //          - Aynı salonda birden fazla öğretmen varsa, görev sayıları eşitlenecek şekilde en az görev alanı seç veya kullanıcı tercihini uygula
+  // Kural 2: Salondaki öğretmen komisyon veya izinli/raporlu ise boşta olan nöbetçi öğretmen (en az görev alan)
+  // Kural 3: Boşta nöbetçi yoksa, sınav olmayan salonlardaki veya dersi olmayan boş öğretmenlerden biri (en az görev alan)
+
   const roomSupervisorMap = new Map<string, { teacherName: string; branch: string; reason: string }>();
   const assignedTeacherIds = new Set<string>();
-  const commissionSet = new Set(commissionMembers.map(m => m.toLowerCase().trim()));
+  const teacherDutyCounts = getTeacherSupervisorCounts(teachers, savedPlans);
 
-  // A. Room's current lesson teacher
+  // Helper to check if teacher is available (not on leave, not commission, not already assigned)
+  const isTeacherAvailable = (t: Teacher): boolean => {
+    if (t.isLeave) return false;
+    if (commissionSet.has(t.name.toLowerCase().trim())) return false;
+    if (assignedTeacherIds.has(t.id)) return false;
+    return true;
+  };
+
+  // A. Room's current lesson teacher(s)
   for (const room of activeRooms) {
-    const lessonTeacher = teachers.find(t => {
-      if (commissionSet.has(t.name.toLowerCase().trim())) return false;
-      if (assignedTeacherIds.has(t.id)) return false;
+    // Check if user manually selected a preferred supervisor for this room
+    if (preferredSupervisors && preferredSupervisors[room.id]) {
+      const prefIdentifier = preferredSupervisors[room.id].toLowerCase().trim();
+      const prefTeacher = teachers.find(
+        t => (t.id === prefIdentifier || t.name.toLowerCase().trim() === prefIdentifier) && isTeacherAvailable(t)
+      );
+      if (prefTeacher) {
+        roomSupervisorMap.set(room.id, {
+          teacherName: prefTeacher.name,
+          branch: prefTeacher.branch,
+          reason: 'Derslik Öğretmeni (Kullanıcı Seçimi)',
+        });
+        assignedTeacherIds.add(prefTeacher.id);
+        continue;
+      }
+    }
+
+    // Find all teachers who have class in this room at this day & period
+    const roomTeachers = teachers.filter(t => {
+      if (!isTeacherAvailable(t)) return false;
       return t.schedule.some(
         s =>
           s.day === exam.dayOfWeek &&
@@ -92,34 +219,52 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
       );
     });
 
-    if (lessonTeacher) {
-      roomSupervisorMap.set(room.id, {
-        teacherName: lessonTeacher.name,
-        branch: lessonTeacher.branch,
-        reason: 'Derslik Öğretmeni',
+    if (roomTeachers.length > 0) {
+      // Sort by past supervisor duty count ascending for equal load distribution, then shuffle ties
+      const sortedCandidates = [...roomTeachers].sort((a, b) => {
+        const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
+        const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
+        if (countA !== countB) return countA - countB;
+        return Math.random() - 0.5;
       });
-      assignedTeacherIds.add(lessonTeacher.id);
+
+      const selectedTeacher = sortedCandidates[0];
+      const hasMultiple = roomTeachers.length > 1;
+
+      roomSupervisorMap.set(room.id, {
+        teacherName: selectedTeacher.name,
+        branch: selectedTeacher.branch,
+        reason: hasMultiple
+          ? `Derslik Öğretmeni (Birden fazla öğretmenden dengeli seçildi - ${roomTeachers.length} öğretmen)`
+          : 'Derslik Öğretmeni',
+      });
+      assignedTeacherIds.add(selectedTeacher.id);
     }
   }
 
   // B. Duty teachers without lesson in this period (Boşta Nöbetçi Öğretmenler)
-  const dutyTeachersFree = shuffleArray(
-    teachers.filter(t => {
-      if (commissionSet.has(t.name.toLowerCase().trim())) return false;
-      if (assignedTeacherIds.has(t.id)) return false;
+  // Teachers who are on duty today, have NO lesson in this period, not on leave, not commission, not yet assigned
+  const availableDutyTeachers = teachers
+    .filter(t => {
+      if (!isTeacherAvailable(t)) return false;
       if (t.dutyDay !== exam.dayOfWeek) return false;
       const hasLessonInPeriod = t.schedule.some(
         s => s.day === exam.dayOfWeek && s.period === exam.period
       );
       return !hasLessonInPeriod;
     })
-  );
+    .sort((a, b) => {
+      const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
+      const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
+      if (countA !== countB) return countA - countB;
+      return Math.random() - 0.5;
+    });
 
   let dutyIdx = 0;
   for (const room of activeRooms) {
     if (!roomSupervisorMap.has(room.id)) {
-      if (dutyIdx < dutyTeachersFree.length) {
-        const t = dutyTeachersFree[dutyIdx++];
+      if (dutyIdx < availableDutyTeachers.length) {
+        const t = availableDutyTeachers[dutyIdx++];
         roomSupervisorMap.set(room.id, {
           teacherName: t.name,
           branch: t.branch,
@@ -135,10 +280,10 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
     classrooms.filter(c => !c.isSelectedForExam).map(c => c.name.toLowerCase().trim())
   );
 
-  const fallbackTeachers = shuffleArray(
-    teachers.filter(t => {
-      if (commissionSet.has(t.name.toLowerCase().trim())) return false;
-      if (assignedTeacherIds.has(t.id)) return false;
+  const fallbackTeachers = teachers
+    .filter(t => {
+      if (!isTeacherAvailable(t)) return false;
+      // Teacher either has no lesson at all in this period OR lesson is in a non-exam room
       const lessonInExamRoom = t.schedule.some(
         s =>
           s.day === exam.dayOfWeek &&
@@ -147,7 +292,12 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
       );
       return !lessonInExamRoom;
     })
-  );
+    .sort((a, b) => {
+      const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
+      const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
+      if (countA !== countB) return countA - countB;
+      return Math.random() - 0.5;
+    });
 
   let fallbackIdx = 0;
   for (const room of activeRooms) {
@@ -161,7 +311,7 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
         });
         assignedTeacherIds.add(t.id);
         warnings.push(
-          `${room.name} salonuna boşta nöbetçi öğretmen bulunamadığı için sınav salonu olmayan dersten ${t.name} (${t.branch}) gözetmen olarak atanmıştır.`
+          `${room.name} salonuna derslik/nöbetçi öğretmen bulunamadığı için sınav salonu olmayan dersten ${t.name} (${t.branch}) gözetmen olarak atanmıştır.`
         );
       } else {
         roomSupervisorMap.set(room.id, {

@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Exam, Subject, ExamClassAssignment, SeatingPlanResult } from '../../types';
+import { formatPeriodWithTimes, extractPeriodNumber } from '../../services/periodTimes';
 
 interface Props {
   exams: Exam[];
@@ -663,16 +664,41 @@ export const ExamDefinitionSection: React.FC<Props> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                  Ders Saati (Örn: 5. Ders):
-                </label>
-                <input
-                  type="text"
-                  value={examPeriodInput}
-                  onChange={e => setExamPeriodInput(e.target.value)}
-                  placeholder="5. Ders"
-                  className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-slate-50/50"
-                />
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    Ders Saati & Zamanı:
+                  </label>
+                  <span className="text-[10px] text-sky-700 font-bold">Zil Saatleri Otomatik</span>
+                </div>
+                <div className="grid grid-cols-5 gap-1.5">
+                  <select
+                    value={extractPeriodNumber(examPeriodInput)}
+                    onChange={e => {
+                      const p = parseInt(e.target.value, 10);
+                      setExamPeriodInput(formatPeriodWithTimes(p));
+                    }}
+                    className="col-span-2 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(p => (
+                      <option key={p} value={p}>
+                        {p}. Ders
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={examPeriodInput}
+                    onChange={e => setExamPeriodInput(e.target.value)}
+                    onBlur={e => {
+                      const p = extractPeriodNumber(e.target.value);
+                      if (p >= 1 && p <= 12) {
+                        setExamPeriodInput(formatPeriodWithTimes(p));
+                      }
+                    }}
+                    placeholder="Örn: 3. Ders (10:20 - 11:00)"
+                    className="col-span-3 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-slate-50/50"
+                  />
+                </div>
               </div>
 
               <div className="p-2 bg-sky-50/70 border border-sky-200/80 rounded-lg text-[10.5px] text-sky-800 leading-snug">

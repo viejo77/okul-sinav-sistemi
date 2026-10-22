@@ -70,12 +70,22 @@ export interface TeacherLessonSchedule {
   subjectName: string; // e.g. "Matematik"
 }
 
+export interface PeriodTimeSlot {
+  period: number; // 1, 2, 3...
+  startTime: string; // e.g. "08:30"
+  endTime: string; // e.g. "09:10"
+  label: string; // e.g. "1. Ders (08:30 - 09:10)"
+}
+
 export interface Teacher {
   id: string;
   name: string;
   branch: string; // Branş e.g. "Matematik", "Edebiyat"
   dutyDay: 'Pazartesi' | 'Salı' | 'Çarşamba' | 'Perşembe' | 'Cuma' | 'Yok';
   schedule: TeacherLessonSchedule[];
+  isLeave?: boolean; // İzinli veya Raporlu durumu
+  leaveReason?: string; // e.g. "Sağlık Raporu", "İdari İzinli", "Görevli İzinli"
+  leaveDate?: string; // İzinli olduğu tarih / aralık e.g. "2024-11-06"
 }
 
 export interface SeatedStudentInfo {

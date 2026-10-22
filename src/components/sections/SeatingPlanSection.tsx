@@ -23,7 +23,12 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Classroom, Exam, Student, Subject, Teacher, SeatingPlanResult, SeatedStudentInfo } from '../../types';
-import { generateKelebekPlan } from '../../services/kelebekEngine';
+import {
+  generateKelebekPlan,
+  findMultipleTeacherConflicts,
+  MultipleTeacherConflict,
+} from '../../services/kelebekEngine';
+import { MultipleTeachersSupervisorModal } from '../modals/MultipleTeachersSupervisorModal';
 import { exportPlanToExcelFile } from '../../services/excelService';
 import { exportPlanToGoogleSheets } from '../../services/googleSheets';
 import { getClassColor } from '../../utils/classColors';
@@ -71,6 +76,10 @@ export const SeatingPlanSection: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState('ALL');
 
+  // Multi-teacher conflict resolution modal state
+  const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
+  const [detectedConflicts, setDetectedConflicts] = useState<MultipleTeacherConflict[]>([]);
+
   // Reset local room selection and filters whenever the active exam is changed
   useEffect(() => {
     setSelectedRoomIndex(0);
@@ -79,14 +88,10 @@ export const SeatingPlanSection: React.FC<Props> = ({
     setErrorMessage(null);
   }, [activeExam?.id]);
 
-  // Run Butterfly Algorithm
-  const handleGenerate = () => {
-    if (!activeExam) {
-      setErrorMessage('Lütfen önce Sınav Tanımlama bölümünden bir sınav seçiniz.');
-      return;
-    }
+  // Execute actual generation with optional user supervisor preferences
+  const executeGeneration = (preferredSupervisors?: Record<string, string>) => {
+    if (!activeExam) return;
 
-    // Always resolve a safe subject (by subjectId, subjectName or assignedClasses) so distribution never fails
     const safeSubject: Subject = subject || {
       id: activeExam.subjectId || 'sub-auto',
       name:
@@ -107,6 +112,8 @@ export const SeatingPlanSection: React.FC<Props> = ({
         students,
         classrooms,
         teachers,
+        savedPlans,
+        preferredSupervisors,
       });
 
       // Strict association with current active exam
@@ -124,6 +131,41 @@ export const SeatingPlanSection: React.FC<Props> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // Run Butterfly Algorithm - prompts modal if rooms have multiple teachers at that slot
+  const handleGenerate = () => {
+    if (!activeExam) {
+      setErrorMessage('Lütfen önce Sınav Tanımlama bölümünden bir sınav seçiniz.');
+      return;
+    }
+
+    const safeSubject: Subject = subject || {
+      id: activeExam.subjectId || 'sub-auto',
+      name:
+        activeExam.subjectName ||
+        (activeExam.assignedClasses && activeExam.assignedClasses[0]?.subjectName) ||
+        'Ortak Sınav',
+      code: 'ORT',
+      teachers: [],
+    };
+
+    const activeRooms = classrooms.filter(c => c.isSelectedForExam);
+    const conflicts = findMultipleTeacherConflicts(
+      activeRooms,
+      activeExam,
+      teachers,
+      safeSubject.teachers || [],
+      savedPlans
+    );
+
+    if (conflicts.length > 0) {
+      setDetectedConflicts(conflicts);
+      setConflictsModalOpen(true);
+      return;
+    }
+
+    executeGeneration();
   };
 
   // Google Sheets Export
@@ -198,6 +240,14 @@ export const SeatingPlanSection: React.FC<Props> = ({
 
   return (
     <div className="space-y-3.5">
+      {/* Multiple Teachers in Same Room Conflict Resolution Modal */}
+      <MultipleTeachersSupervisorModal
+        isOpen={conflictsModalOpen}
+        onClose={() => setConflictsModalOpen(false)}
+        conflicts={detectedConflicts}
+        onConfirm={selections => executeGeneration(selections)}
+      />
+
       {/* TOP HEADER BAR (With Active Exam Switcher & Distribution Status) */}
       <div className="bg-white rounded-xl px-3 sm:px-4 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs w-full min-w-0">
         <div className="flex items-center gap-2 min-w-0 py-0.5">
