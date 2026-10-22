@@ -15,10 +15,14 @@ import {
   School,
   Check,
 } from 'lucide-react';
-import { SeatingPlanResult } from '../../types';
+import { SeatingPlanResult, Exam } from '../../types';
 
 interface Props {
   plan: SeatingPlanResult | undefined;
+  activeExam?: Exam;
+  exams?: Exam[];
+  activeExamId?: string;
+  setActiveExamId?: (id: string) => void;
   onOpenPrintModal: (mode: 'ALL' | 'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES') => void;
   onGoToPlan: () => void;
   onGoToExamSchedule?: () => void;
@@ -26,40 +30,90 @@ interface Props {
 
 export const PrintCenterSection: React.FC<Props> = ({
   plan,
+  activeExam,
+  exams,
+  activeExamId,
+  setActiveExamId,
   onOpenPrintModal,
   onGoToPlan,
   onGoToExamSchedule,
 }) => {
   if (!plan) {
     return (
-      <div className="bg-white rounded-xl p-8 text-center border border-dashed border-slate-300 max-w-xl mx-auto my-6 shadow-2xs">
-        <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
-          <Sparkles className="w-6 h-6" />
+      <div className="space-y-4">
+        {/* Top bar with Exam Switcher even in empty state */}
+        <div className="bg-white rounded-xl px-3.5 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-[11px] shrink-0">
+              BÖLÜM 8
+            </span>
+            <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
+              Sınav Raporları & Resmi Evrak Çıktı Merkezi
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {exams && exams.length > 0 && setActiveExamId && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1">
+                <span className="text-slate-500 font-semibold text-[11px]">Sınav Değiştir:</span>
+                <select
+                  value={activeExam?.id || activeExamId || ''}
+                  onChange={e => setActiveExamId(e.target.value)}
+                  className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs max-w-[200px] truncate"
+                >
+                  {exams.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} ({e.date})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {onGoToExamSchedule && (
+              <button
+                onClick={onGoToExamSchedule}
+                className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                <span>Pano Sınav Takvimi</span>
+              </button>
+            )}
+          </div>
         </div>
-        <h3 className="text-base font-extrabold text-slate-800">
-          Kelebek Oturma Planı Henüz Hazır Değil
-        </h3>
-        <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
-          Resmi sınav salon planları, kapı çizelgeleri ve gözetmen tutanaklarını alabilmek için lütfen
-          önce <strong>5. Oturma Düzeni</strong> bölümünden kelebek dağıtımını çalıştırınız.
-        </p>
-        <div className="mt-5 flex justify-center gap-3">
-          <button
-            onClick={onGoToPlan}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
-          >
-            <span>5. Oturma Düzeni Bölümüne Git</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-          {onGoToExamSchedule && (
+
+        {/* Empty State Card */}
+        <div className="bg-white rounded-xl p-8 text-center border border-dashed border-slate-300 max-w-xl mx-auto my-6 shadow-2xs space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto">
+            <Sparkles className="w-7 h-7" />
+          </div>
+          <div>
+            <span className="text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+              Henüz Dağıtım Yapılmadı (Boş)
+            </span>
+            <h3 className="text-base font-extrabold text-slate-900 mt-2">
+              {activeExam?.name || 'Seçili Sınav'} İçin Evraklar Hazır Değil
+            </h3>
+            {activeExam && (
+              <p className="text-xs text-indigo-700 font-semibold mt-0.5">
+                📅 {activeExam.date} • ⏰ {activeExam.periodLabel || `${activeExam.period}. Ders`}
+              </p>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+            Resmi sınav salon planları, kapı çizelgeleri ve gözetmen tutanaklarını alabilmek için lütfen
+            önce <strong>5. Oturma Düzeni</strong> bölümünden bu sınava ait kelebek dağıtımını çalıştırınız.
+          </p>
+          <div className="pt-2 flex justify-center gap-3">
             <button
-              onClick={onGoToExamSchedule}
-              className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+              onClick={onGoToPlan}
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
             >
-              <Calendar className="w-4 h-4 text-purple-600" />
-              <span>Pano Sınav Takvimi</span>
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>5. Oturma Düzenine Git ve Dağıt</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
-          )}
+          </div>
         </div>
       </div>
     );
@@ -94,7 +148,24 @@ export const PrintCenterSection: React.FC<Props> = ({
         </div>
 
         {/* Bulk PDF & Pano Schedule Action */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {exams && exams.length > 0 && setActiveExamId && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 text-xs">
+              <span className="text-slate-500 font-semibold text-[11px]">Sınav:</span>
+              <select
+                value={activeExam?.id || activeExamId || ''}
+                onChange={e => setActiveExamId(e.target.value)}
+                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs max-w-[150px] truncate"
+              >
+                {exams.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.date})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {onGoToExamSchedule && (
             <button
               onClick={onGoToExamSchedule}

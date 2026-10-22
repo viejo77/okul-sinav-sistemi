@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   Printer,
@@ -20,6 +20,7 @@ import {
   Armchair,
   BookOpen,
   Info,
+  Trash2,
 } from 'lucide-react';
 import { Classroom, Exam, Student, Subject, Teacher, SeatingPlanResult, SeatedStudentInfo } from '../../types';
 import { generateKelebekPlan } from '../../services/kelebekEngine';
@@ -29,6 +30,11 @@ import { getClassColor } from '../../utils/classColors';
 
 interface Props {
   activeExam: Exam | undefined;
+  exams?: Exam[];
+  activeExamId?: string;
+  setActiveExamId?: (id: string) => void;
+  savedPlans?: Record<string, SeatingPlanResult>;
+  onClearPlanForActiveExam?: () => void;
   subject: Subject | undefined;
   students: Student[];
   classrooms: Classroom[];
@@ -41,6 +47,11 @@ interface Props {
 
 export const SeatingPlanSection: React.FC<Props> = ({
   activeExam,
+  exams,
+  activeExamId,
+  setActiveExamId,
+  savedPlans,
+  onClearPlanForActiveExam,
   subject,
   students,
   classrooms,
@@ -57,10 +68,16 @@ export const SeatingPlanSection: React.FC<Props> = ({
   const [isExportingToGoogle, setIsExportingToGoogle] = useState(false);
   const [googleSheetResult, setGoogleSheetResult] = useState<{ url: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState('ALL');
+
+  // Reset local room selection and filters whenever the active exam is changed
+  useEffect(() => {
+    setSelectedRoomIndex(0);
+    setSearchTerm('');
+    setSelectedClassFilter('ALL');
+    setErrorMessage(null);
+  }, [activeExam?.id]);
 
   // Run Butterfly Algorithm
   const handleGenerate = () => {
@@ -92,7 +109,14 @@ export const SeatingPlanSection: React.FC<Props> = ({
         teachers,
       });
 
-      setCurrentPlan(plan);
+      // Strict association with current active exam
+      const examSpecificPlan: SeatingPlanResult = {
+        ...plan,
+        examId: activeExam.id,
+        examName: activeExam.name,
+      };
+
+      setCurrentPlan(examSpecificPlan);
       setSelectedRoomIndex(0);
     } catch (err: unknown) {
       console.error(err);
@@ -174,7 +198,7 @@ export const SeatingPlanSection: React.FC<Props> = ({
 
   return (
     <div className="space-y-3.5">
-      {/* TOP HEADER BAR (Matching the other 4 sections) */}
+      {/* TOP HEADER BAR (With Active Exam Switcher & Distribution Status) */}
       <div className="bg-white rounded-xl px-3 sm:px-4 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs w-full min-w-0">
         <div className="flex items-center gap-2 min-w-0 py-0.5">
           <span className="text-xs sm:text-sm md:text-base font-black text-blue-600 tracking-wide uppercase flex items-center gap-1.5 leading-normal">
@@ -185,14 +209,55 @@ export const SeatingPlanSection: React.FC<Props> = ({
           <span className="font-bold text-slate-700 hidden md:inline truncate">5. Oturma Düzeni & Kelebek Planı</span>
         </div>
 
-        {activeExam && (
-          <div className="flex items-center gap-1.5 text-cyan-700 font-bold italic text-[11px] truncate max-w-xs sm:max-w-md shrink-0 bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-lg">
-            <span className="shrink-0">📝</span>
-            <span className="truncate">
-              {activeExam.name} ({activeExam.date} • {activeExam.period}. Ders)
-            </span>
-          </div>
-        )}
+        {/* Exam Switcher & Distribution State Badges */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {exams && exams.length > 0 && setActiveExamId && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1">
+              <span className="text-slate-500 font-semibold text-[11px]">Sınav Değiştir:</span>
+              <select
+                value={activeExam?.id || activeExamId || ''}
+                onChange={e => setActiveExamId(e.target.value)}
+                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs max-w-[170px] sm:max-w-[240px] truncate"
+              >
+                {exams.map(e => {
+                  const hasPlan = savedPlans && !!savedPlans[e.id];
+                  return (
+                    <option key={e.id} value={e.id}>
+                      {hasPlan ? '✓ ' : '⏳ '}{e.name} ({e.date}) {hasPlan ? '[Dağıtıldı]' : '[Boş]'}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Current Exam Status Badge */}
+          {currentPlan ? (
+            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>✓ Dağıtımı Hazır ({totalAssignedStudents} Öğrenci)</span>
+              {onClearPlanForActiveExam && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`"${activeExam?.name}" sınavına ait kelebek dağıtımını sıfırlamak istiyor musunuz?`)) {
+                      onClearPlanForActiveExam();
+                    }
+                  }}
+                  className="ml-1 text-emerald-700 hover:text-red-600 transition p-0.5 rounded cursor-pointer"
+                  title="Bu sınavın kelebek dağıtımını sıfırla (boşalt)"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-800 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>⏳ Dağıtım Yapılmamış (Boş)</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Error or Warning Banner */}
@@ -446,26 +511,40 @@ export const SeatingPlanSection: React.FC<Props> = ({
 
         {/* RIGHT COLUMN: Room Tabs, Filters, and Side-by-Side Visual Seating Plan */}
         <div className="flex-1 min-w-0 w-full bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-          {/* If No Plan Yet: Guidance Placeholder */}
+          {/* If No Plan Yet: Clear Exam-Specific Empty State */}
           {!currentPlan ? (
-            <div className="p-12 text-center flex flex-col items-center justify-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
+            <div className="p-10 sm:p-14 text-center flex flex-col items-center justify-center space-y-3.5">
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs border border-amber-200">
                 <School className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-slate-800">
-                Henüz Oturma Düzeni Oluşturulmadı
-              </h3>
-              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                Öğrencileri sınav salonlarına kelebek dağıtım kuralına göre (bir sırada iki öğrenci yan yana gelecek şekilde) yerleştirmek için soldaki <strong>&quot;Kelebek Dağıtımını Başlat&quot;</strong> butonuna tıklayınız.
+              <div>
+                <span className="text-[11px] font-extrabold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Henüz Dağıtım Yapılmadı (Boş)
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 mt-1.5">
+                  {activeExam?.name || 'Seçili Sınav'} İçin Oturma Düzeni Bulunmuyor
+                </h3>
+                {activeExam && (
+                  <p className="text-xs text-indigo-700 font-bold mt-0.5">
+                    📅 {activeExam.date} • ⏰ {activeExam.periodLabel || `${activeExam.period}. Ders`}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 max-w-lg mx-auto leading-relaxed">
+                Bu sınava ait öğrenci ve salon yerleşim planı henüz oluşturulmamıştır. Öğrencileri kelebek dağıtım kuralına göre salonlara dengeli yerleştirmek için aşağıdaki <strong>&quot;Kelebek Dağıtımını Başlat&quot;</strong> butonuna tıklayınız.
               </p>
               <button
                 type="button"
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs flex items-center gap-2 shadow-xs cursor-pointer transition active:scale-95"
+                className="mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold py-3 px-6 rounded-xl text-xs flex items-center gap-2 shadow-md cursor-pointer transition active:scale-95"
               >
                 <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Kelebek Dağıtımını Başlat</span>
+                <span>
+                  {isGenerating
+                    ? 'Yerleştiriliyor...'
+                    : `Bu Sınav İçin Dağıtımı Başlat (${activeExam?.name || 'Kelebek'})`}
+                </span>
               </button>
             </div>
           ) : (

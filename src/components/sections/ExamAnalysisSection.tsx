@@ -42,6 +42,9 @@ interface Props {
   plan: SeatingPlanResult | undefined;
   teachers?: Teacher[];
   activeExam?: Exam;
+  exams?: Exam[];
+  activeExamId?: string;
+  setActiveExamId?: (id: string) => void;
   onGoToPlan: () => void;
   onOpenPrintModal: (mode: 'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES') => void;
 }
@@ -73,6 +76,9 @@ export const ExamAnalysisSection: React.FC<Props> = ({
   plan,
   teachers,
   activeExam,
+  exams,
+  activeExamId,
+  setActiveExamId,
   onGoToPlan,
   onOpenPrintModal,
 }) => {
@@ -405,23 +411,66 @@ export const ExamAnalysisSection: React.FC<Props> = ({
 
   if (!plan || !analysisData) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-300">
-        <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
-          <BarChart3 className="w-8 h-8" />
+      <div className="space-y-4">
+        {/* Top bar with Exam Switcher even in empty state */}
+        <div className="bg-white rounded-xl px-3.5 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-[11px] shrink-0">
+              7. BÖLÜM
+            </span>
+            <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
+              Sınav ve Oturma Düzeni Analizi
+            </h2>
+          </div>
+
+          {exams && exams.length > 0 && setActiveExamId && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1">
+              <span className="text-slate-500 font-semibold text-[11px]">Sınav Değiştir:</span>
+              <select
+                value={activeExam?.id || activeExamId || ''}
+                onChange={e => setActiveExamId(e.target.value)}
+                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs max-w-[220px] truncate"
+              >
+                {exams.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.date})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-        <h3 className="text-lg font-bold text-slate-800">Sınav Analizi Henüz Hazır Değil</h3>
-        <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
-          Kullanılan toplam salon sayısı, sınava giren toplam öğrenci sayısı ve sınıf düzeylerine göre
-          öğrenci dağılım grafiklerini görüntülemek için lütfen önce Kelebek Dağıtımını çalıştırınız.
-        </p>
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={onGoToPlan}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer"
-          >
-            <span>5. Oturma Düzenine Git ve Dağıtımı Başlat</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+
+        {/* Empty State Card */}
+        <div className="bg-white rounded-2xl p-10 sm:p-12 text-center border border-dashed border-slate-300 max-w-xl mx-auto my-6 shadow-2xs space-y-3">
+          <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto mb-2">
+            <BarChart3 className="w-8 h-8" />
+          </div>
+          <div>
+            <span className="text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+              Henüz Dağıtım Yapılmadı (Boş)
+            </span>
+            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 mt-2">
+              {activeExam?.name || 'Seçili Sınav'} İçin Analiz Verisi Yok
+            </h3>
+            {activeExam && (
+              <p className="text-xs text-indigo-700 font-semibold mt-1">
+                📅 {activeExam.date} • ⏰ {activeExam.periodLabel || `${activeExam.period}. Ders`}
+              </p>
+            )}
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
+              Bu sınava ait salon doluluk oranları, sınıf dağılım grafikleri ve gözetmen analizini görmek için lütfen önce Kelebek Dağıtımını çalıştırınız.
+            </p>
+          </div>
+          <div className="pt-2 flex justify-center">
+            <button
+              onClick={onGoToPlan}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer"
+            >
+              <span>5. Oturma Düzenine Git ve Dağıtımı Başlat</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -473,6 +522,22 @@ export const ExamAnalysisSection: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
+            {exams && exams.length > 0 && setActiveExamId && (
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 text-[11px]">
+                <span className="text-slate-500 font-semibold text-[10px]">Sınav:</span>
+                <select
+                  value={activeExam?.id || activeExamId || ''}
+                  onChange={e => setActiveExamId(e.target.value)}
+                  className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-[11px] max-w-[150px] truncate"
+                >
+                  {exams.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <span className="bg-slate-100 px-2 py-0.5 rounded font-bold text-[11px] text-slate-700">
               {totalRooms} Salon ({totalCapacity} Kap.)
             </span>

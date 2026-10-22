@@ -72,10 +72,50 @@ export default function App() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [currentPlan, setCurrentPlan] = useState<SeatingPlanResult | undefined>(undefined);
+  const [savedPlans, setSavedPlans] = useState<Record<string, SeatingPlanResult>>({});
   const [responsibilityExams, setResponsibilityExams] = useState<ResponsibilityExam[]>([]);
   const [responsibilitySettings, setResponsibilitySettings] =
     useState<ResponsibilitySettings>(initialResponsibilitySettings);
+
+  // Active exam seating plan: Always returns the plan specifically made for activeExamId.
+  // If no distribution was made for this active exam, returns undefined (comes completely empty).
+  const currentPlan = React.useMemo(() => {
+    if (!activeExamId) return undefined;
+    const plan = savedPlans[activeExamId];
+    if (!plan) return undefined;
+    // Strict safety verification: Ensure the plan actually belongs to activeExamId
+    if (!plan.examId || plan.examId !== activeExamId) {
+      return undefined;
+    }
+    return plan;
+  }, [activeExamId, savedPlans]);
+
+  const handleSetCurrentPlan = (plan: SeatingPlanResult | undefined) => {
+    if (!activeExamId && !plan) return;
+    const targetExamId = activeExamId || (plan && plan.examId);
+    if (!targetExamId) return;
+    setSavedPlans(prev => {
+      const next = { ...prev };
+      if (plan) {
+        next[targetExamId] = { ...plan, examId: targetExamId };
+      } else {
+        delete next[targetExamId];
+      }
+      return next;
+    });
+  };
+
+  const handleClearCurrentPlan = () => {
+    if (!activeExamId) return;
+    setSavedPlans(prev => {
+      const next = { ...prev };
+      delete next[activeExamId];
+      return next;
+    });
+  };
+
+  // State for registering Pano Sınav Takvimi isolated print handler
+  const [boardPrintHandler, setBoardPrintHandler] = useState<(() => void) | null>(null);
 
   // Print modal state
   const [printModalMode, setPrintModalMode] = useState<
@@ -141,7 +181,19 @@ export default function App() {
       setStudents(saved.students || []);
       setClassrooms(saved.classrooms || []);
       setTeachers(saved.teachers || []);
-      setCurrentPlan(saved.lastPlan);
+      const loadedPlans: Record<string, SeatingPlanResult> = saved.savedPlans || {};
+      if (saved.lastPlan && saved.lastPlan.examId) {
+        loadedPlans[saved.lastPlan.examId] = saved.lastPlan;
+      }
+      const existingExamIds = new Set((saved.exams || []).map(e => e.id));
+      const sanitizedPlans: Record<string, SeatingPlanResult> = {};
+      Object.entries(loadedPlans).forEach(([key, plan]) => {
+        const targetId = plan?.examId || key;
+        if (targetId && existingExamIds.has(targetId) && plan) {
+          sanitizedPlans[targetId] = { ...plan, examId: targetId };
+        }
+      });
+      setSavedPlans(sanitizedPlans);
       setResponsibilitySettings(saved.responsibilitySettings || initialResponsibilitySettings);
       setResponsibilityExams(
         saved.responsibilityExams || generateInitialResponsibilityExams(saved.students || [])
@@ -155,7 +207,8 @@ export default function App() {
       setStudents(mock.students);
       setClassrooms(mock.classrooms);
       setTeachers(mock.teachers);
-      setCurrentPlan(mock.samplePlan);
+      const initialPlans: Record<string, SeatingPlanResult> = {};
+      setSavedPlans(initialPlans);
       setResponsibilitySettings(mock.responsibilitySettings || initialResponsibilitySettings);
       setResponsibilityExams(
         mock.responsibilityExams || generateInitialResponsibilityExams(mock.students)
@@ -168,6 +221,7 @@ export default function App() {
         classrooms: mock.classrooms,
         teachers: mock.teachers,
         lastPlan: mock.samplePlan,
+        savedPlans: initialPlans,
         responsibilitySettings: mock.responsibilitySettings || initialResponsibilitySettings,
         responsibilityExams:
           mock.responsibilityExams || generateInitialResponsibilityExams(mock.students),
@@ -197,6 +251,7 @@ export default function App() {
         classrooms,
         teachers,
         lastPlan: currentPlan,
+        savedPlans,
         responsibilityExams,
         responsibilitySettings,
       });
@@ -209,6 +264,7 @@ export default function App() {
     classrooms,
     teachers,
     currentPlan,
+    savedPlans,
     responsibilityExams,
     responsibilitySettings,
   ]);
@@ -291,7 +347,8 @@ export default function App() {
         setStudents(mock.students);
         setClassrooms(mock.classrooms);
         setTeachers(mock.teachers);
-        setCurrentPlan(mock.samplePlan);
+        const initialPlans: Record<string, SeatingPlanResult> = {};
+        setSavedPlans(initialPlans);
         setResponsibilitySettings(mock.responsibilitySettings || initialResponsibilitySettings);
         setResponsibilityExams(
           mock.responsibilityExams || generateInitialResponsibilityExams(mock.students)
@@ -304,6 +361,7 @@ export default function App() {
           classrooms: mock.classrooms,
           teachers: mock.teachers,
           lastPlan: mock.samplePlan,
+          savedPlans: initialPlans,
           responsibilitySettings: mock.responsibilitySettings || initialResponsibilitySettings,
           responsibilityExams:
             mock.responsibilityExams || generateInitialResponsibilityExams(mock.students),
@@ -329,7 +387,7 @@ export default function App() {
         setStudents([]);
         setClassrooms([]);
         setTeachers([]);
-        setCurrentPlan(undefined);
+        setSavedPlans({});
         setResponsibilityExams([]);
         setResponsibilitySettings(initialResponsibilitySettings);
         setConfirmDialog(null);
@@ -350,7 +408,11 @@ export default function App() {
       setStudents(data.students || []);
       setClassrooms(data.classrooms || []);
       setTeachers(data.teachers || []);
-      setCurrentPlan(data.lastPlan);
+      const importedPlans: Record<string, SeatingPlanResult> = data.savedPlans || {};
+      if (data.lastPlan && data.lastPlan.examId) {
+        importedPlans[data.lastPlan.examId] = data.lastPlan;
+      }
+      setSavedPlans(importedPlans);
       if (data.responsibilitySettings) {
         setResponsibilitySettings(data.responsibilitySettings);
       }
@@ -381,6 +443,7 @@ export default function App() {
           onImportBackup={handleImportBackup}
           onOpenHelpTips={() => setHelpModalOpen(true)}
           onOpenPrintModal={() => setPrintModalMode('SALON')}
+          onPrintBoardSchedule={boardPrintHandler || undefined}
           studentsCount={students.length}
           classroomsCount={classrooms.length}
           teachersCount={teachers.length}
@@ -414,7 +477,9 @@ export default function App() {
               subjects={subjects}
               setSubjects={setSubjects}
               availableClasses={availableClasses}
+              savedPlans={savedPlans}
               onGoToExamSchedule={() => setActiveTab(10)}
+              onGoToPlan={() => setActiveTab(5)}
             />
           )}
 
@@ -429,6 +494,7 @@ export default function App() {
               setActiveExamId={setActiveExamId}
               onNavigateToExamTab={() => setActiveTab(1)}
               onNavigateToSeatingPlan={() => setActiveTab(5)}
+              onRegisterPrintHandler={handler => setBoardPrintHandler(() => handler)}
             />
           )}
 
@@ -463,12 +529,17 @@ export default function App() {
           {activeTab === 5 && (
             <SeatingPlanSection
               activeExam={activeExam}
+              exams={exams}
+              activeExamId={activeExamId}
+              setActiveExamId={setActiveExamId}
+              savedPlans={savedPlans}
+              onClearPlanForActiveExam={handleClearCurrentPlan}
               subject={activeSubject}
               students={students}
               classrooms={classrooms}
               teachers={teachers}
               currentPlan={currentPlan}
-              setCurrentPlan={setCurrentPlan}
+              setCurrentPlan={handleSetCurrentPlan}
               onOpenPrintModal={mode => setPrintModalMode(mode)}
               onGoToAnalysis={() => setActiveTab(7)}
             />
@@ -477,7 +548,12 @@ export default function App() {
           {activeTab === 6 && (
             <ClassDistributionsSection
               plan={currentPlan}
+              activeExam={activeExam}
+              exams={exams}
+              activeExamId={activeExamId}
+              setActiveExamId={setActiveExamId}
               onOpenPrintModal={mode => setPrintModalMode(mode)}
+              onGoToPlan={() => setActiveTab(5)}
             />
           )}
 
@@ -486,6 +562,9 @@ export default function App() {
               plan={currentPlan}
               teachers={teachers}
               activeExam={activeExam}
+              exams={exams}
+              activeExamId={activeExamId}
+              setActiveExamId={setActiveExamId}
               onGoToPlan={() => setActiveTab(5)}
               onOpenPrintModal={mode => setPrintModalMode(mode)}
             />
@@ -494,6 +573,10 @@ export default function App() {
           {activeTab === 8 && (
             <PrintCenterSection
               plan={currentPlan}
+              activeExam={activeExam}
+              exams={exams}
+              activeExamId={activeExamId}
+              setActiveExamId={setActiveExamId}
               onOpenPrintModal={mode => setPrintModalMode(mode)}
               onGoToPlan={() => setActiveTab(5)}
               onGoToExamSchedule={() => setActiveTab(10)}

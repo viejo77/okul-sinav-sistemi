@@ -93,7 +93,8 @@ html, body {
     body.is-printing-board-schedule nav,
     body.is-printing-board-schedule footer,
     body.is-printing-board-schedule .no-print,
-    body.is-printing-board-schedule .print-only {
+    body.is-printing-board-schedule .print-only,
+    body.is-printing-board-schedule #root > div > div.no-print {
       display: none !important;
     }
 

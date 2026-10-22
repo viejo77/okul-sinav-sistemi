@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Split,
   Printer,
@@ -9,13 +9,19 @@ import {
   ArrowRight,
   CheckCircle2,
   FileText,
+  Sparkles,
 } from 'lucide-react';
-import { SeatingPlanResult, Student } from '../../types';
+import { SeatingPlanResult, Student, Exam } from '../../types';
 import { getClassColor } from '../../utils/classColors';
 
 interface Props {
   plan: SeatingPlanResult | undefined;
+  activeExam?: Exam;
+  exams?: Exam[];
+  activeExamId?: string;
+  setActiveExamId?: (id: string) => void;
   onOpenPrintModal: (mode: 'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES') => void;
+  onGoToPlan?: () => void;
 }
 
 interface SeatedStudentEntry {
@@ -25,9 +31,23 @@ interface SeatedStudentEntry {
   supervisorName: string;
 }
 
-export const ClassDistributionsSection: React.FC<Props> = ({ plan, onOpenPrintModal }) => {
+export const ClassDistributionsSection: React.FC<Props> = ({
+  plan,
+  activeExam,
+  exams,
+  activeExamId,
+  setActiveExamId,
+  onOpenPrintModal,
+  onGoToPlan,
+}) => {
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Reset filters when active plan or exam changes
+  useEffect(() => {
+    setSelectedClass('ALL');
+    setSearchTerm('');
+  }, [plan?.examId, activeExam?.id]);
 
   // 1. Group all seated students by class
   const { classMap, availableClasses, totalAssignedStudents } = useMemo(() => {
@@ -75,15 +95,70 @@ export const ClassDistributionsSection: React.FC<Props> = ({ plan, onOpenPrintMo
 
   if (!plan) {
     return (
-      <div className="bg-white rounded-xl p-8 text-center border border-dashed border-slate-300 max-w-xl mx-auto my-6 shadow-2xs">
-        <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
-          <Split className="w-6 h-6" />
+      <div className="space-y-4">
+        {/* Top bar with Exam Switcher even in empty state */}
+        <div className="bg-white rounded-xl px-3.5 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-[11px] shrink-0">
+              6. BÖLÜM
+            </span>
+            <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
+              Sınıflara Göre Sınav Salonu Dağılımları
+            </h2>
+          </div>
+
+          {exams && exams.length > 0 && setActiveExamId && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1">
+              <span className="text-slate-500 font-semibold text-[11px]">Sınav Değiştir:</span>
+              <select
+                value={activeExam?.id || activeExamId || ''}
+                onChange={e => setActiveExamId(e.target.value)}
+                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs max-w-[220px] truncate"
+              >
+                {exams.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.date})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-        <h3 className="text-base font-bold text-slate-800">Sınav Dağılımı Henüz Yapılmadı</h3>
-        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1.5 leading-relaxed">
-          Sınıf bazlı öğrenci sınav yerleşim listelerini görmek ve kapı listesi çıktısı alabilmek için
-          lütfen <strong>5. Oturma Düzeni</strong> sekmesinden Kelebek dağıtımını çalıştırınız.
-        </p>
+
+        {/* Empty State Card */}
+        <div className="bg-white rounded-xl p-8 text-center border border-dashed border-slate-300 max-w-xl mx-auto my-6 shadow-2xs space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto">
+            <Split className="w-7 h-7" />
+          </div>
+          <div>
+            <span className="text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+              Henüz Dağıtım Yapılmadı (Boş)
+            </span>
+            <h3 className="text-base font-extrabold text-slate-900 mt-2">
+              {activeExam?.name || 'Seçili Sınav'} İçin Dağıtım Bulunmuyor
+            </h3>
+            {activeExam && (
+              <p className="text-xs text-indigo-700 font-semibold mt-0.5">
+                📅 {activeExam.date} • ⏰ {activeExam.periodLabel || `${activeExam.period}. Ders`}
+              </p>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+            Bu sınav için henüz kelebek dağıtımı çalıştırılmamıştır. Sınıf bazlı öğrenci sınav yerleşim listelerini görmek ve kapı listesi çıktısı alabilmek için lütfen <strong>5. Oturma Düzeni</strong> sekmesinden Kelebek dağıtımını çalıştırınız.
+          </p>
+          {onGoToPlan && (
+            <div className="pt-2">
+              <button
+                onClick={onGoToPlan}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 mx-auto shadow-md transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>5. Oturma Düzeni Bölümüne Git ve Dağıt</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -130,8 +205,25 @@ export const ClassDistributionsSection: React.FC<Props> = ({ plan, onOpenPrintMo
         </div>
 
         {/* Quick Actions & Search */}
-        <div className="flex items-center gap-2">
-          <div className="relative w-36 sm:w-52">
+        <div className="flex items-center gap-2 flex-wrap">
+          {exams && exams.length > 0 && setActiveExamId && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 text-xs">
+              <span className="text-slate-500 font-semibold text-[11px]">Sınav:</span>
+              <select
+                value={activeExam?.id || activeExamId || ''}
+                onChange={e => setActiveExamId(e.target.value)}
+                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs max-w-[150px] truncate"
+              >
+                {exams.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.date})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="relative w-36 sm:w-48">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"

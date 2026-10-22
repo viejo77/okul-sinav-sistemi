@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Calendar,
   Clock,
@@ -18,8 +18,11 @@ import {
   Save,
   RotateCcw,
   X,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { Exam, Subject, BoardExamItem, ExamClassAssignment } from '../../types';
+import { exportToPdf, printElementDirectly } from '../../utils/pdfExport';
 
 interface ExamScheduleSectionProps {
   exams: Exam[];
@@ -31,6 +34,7 @@ interface ExamScheduleSectionProps {
   setActiveExamId: (id: string) => void;
   onNavigateToExamTab: () => void;
   onNavigateToSeatingPlan?: () => void;
+  onRegisterPrintHandler?: (handler: () => void) => void;
 }
 
 // Initial realistic default board exam sessions
@@ -155,7 +159,15 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
   setActiveExamId,
   onNavigateToExamTab,
   onNavigateToSeatingPlan,
+  onRegisterPrintHandler,
 }) => {
+  const scheduleDocRef = useRef<HTMLDivElement>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Check if embedded in an iframe (e.g. AI Studio preview)
+  const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+
   // Pano Sınav Oturumları (Kullanıcının 10 gün önceden bağımsız hazırladığı takvim)
   const [boardSessions, setBoardSessions] = useState<BoardExamItem[]>(() => {
     try {
@@ -209,19 +221,64 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Isolated print mode for Noticeboard Exam Schedule only
-  const handlePrintBoardSchedule = () => {
-    document.body.classList.add('is-printing-board-schedule');
-    window.print();
+  // 1. High-resolution A4 PDF Export (Works 100% in all iframes and mobile browsers)
+  const handleDownloadPdf = async () => {
+    if (!scheduleDocRef.current) return;
+    try {
+      setIsExportingPdf(true);
+      showToast('Pano sınav takvimi resmi A4 PDF olarak hazırlanıyor...');
+      await exportToPdf(scheduleDocRef.current, {
+        filename: 'Okul_Pano_Ortak_Sinav_Takvimi.pdf',
+        orientation: 'portrait',
+        onProgress: (current, total) => setPdfProgress({ current, total }),
+      });
+      showToast('✓ Pano Sınav Takvimi PDF olarak başarıyla indirildi!');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      showToast('PDF oluşturulurken bir hata oluştu.');
+    } finally {
+      setIsExportingPdf(false);
+      setPdfProgress(null);
+    }
   };
 
-  useEffect(() => {
-    const handleAfterPrint = () => {
+  // 2. Isolated print mode for Noticeboard Exam Schedule ONLY (Hides everything else in #root)
+  const handlePrintBoardSchedule = async () => {
+    if (!scheduleDocRef.current) return;
+    if (isInIframe) {
+      // In an iframe (AI Studio preview environment), browser security blocks window.print() modal dialogs.
+      // Automatically generate and download the high-resolution print PDF directly!
+      showToast('Önizleme ortamında doğrudan yazdırma yerine yazdırmaya hazır resmi A4 PDF hazırlanıyor...');
+      await handleDownloadPdf();
+      return;
+    }
+
+    try {
+      document.body.classList.add('is-printing-board-schedule');
+      const cleanUp = () => {
+        document.body.classList.remove('is-printing-board-schedule');
+        window.removeEventListener('afterprint', cleanUp);
+      };
+      window.addEventListener('afterprint', cleanUp, { once: true });
+      setTimeout(cleanUp, 4000);
+
+      printElementDirectly(scheduleDocRef.current, {
+        title: 'Okul_Pano_Ortak_Sinav_Takvimi',
+        landscape: false,
+      });
+    } catch (err) {
+      console.warn('Native print failed, falling back to PDF download:', err);
       document.body.classList.remove('is-printing-board-schedule');
-    };
-    window.addEventListener('afterprint', handleAfterPrint);
-    return () => window.removeEventListener('afterprint', handleAfterPrint);
-  }, []);
+      await handleDownloadPdf();
+    }
+  };
+
+  // Register print handler so the Navbar "Yazdır" button can invoke it when activeTab === 10
+  useEffect(() => {
+    if (onRegisterPrintHandler) {
+      onRegisterPrintHandler(handlePrintBoardSchedule);
+    }
+  }, [onRegisterPrintHandler]);
 
   // Modal State for Adding/Editing a Session
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
@@ -550,14 +607,35 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
             <span>Pano Başlığı & İdare Onayı</span>
           </button>
 
-          {/* Primary Print Button */}
+          {/* Download Official A4 PDF Button */}
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isExportingPdf}
+            className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 disabled:bg-slate-300 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            title="Sadece bu sınav takvimini yüksek çözünürlüklü MEB standartlarında A4 PDF dosyası olarak indirir"
+          >
+            {isExportingPdf ? (
+              <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
+            ) : (
+              <Download className="w-4 h-4 text-purple-200" />
+            )}
+            <span>
+              {isExportingPdf
+                ? pdfProgress
+                  ? `Hazırlanıyor (${pdfProgress.current}/${pdfProgress.total})...`
+                  : 'PDF Hazırlanıyor...'
+                : '📥 A4 PDF İndir'}
+            </span>
+          </button>
+
+          {/* Primary Print Button (Prints ONLY Noticeboard Schedule) */}
           <button
             onClick={handlePrintBoardSchedule}
             className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-            title="Resmi MEB A4 formatında panoya asılacak sınav takvimini yazdır veya PDF olarak indir"
+            title="Sadece bu takvimi yazdırır, sınav programı veya oturma planı verilerini dahil etmez"
           >
             <Printer className="w-4 h-4" />
-            <span>🖨️ Panoya Asmak İçin Yazdır / PDF</span>
+            <span>🖨️ Panoya Asmak İçin Yazdır</span>
           </button>
         </div>
       </div>
@@ -696,6 +774,9 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
       {/* 4. OFFICIAL NOTICEBOARD PRINTABLE DOCUMENT (A4 Optimized) */}
       <div
         id="board-schedule-print-document"
+        ref={scheduleDocRef}
+        data-pdf-page="true"
+        data-orientation="portrait"
         className="bg-white rounded-2xl border-2 border-slate-300 p-6 sm:p-8 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:w-full"
       >
         {/* Printable Official School Header */}

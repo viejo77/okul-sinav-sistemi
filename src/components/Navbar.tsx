@@ -42,6 +42,7 @@ interface NavbarProps {
   onImportBackup: (file: File) => void;
   onOpenHelpTips: () => void;
   onOpenPrintModal?: () => void;
+  onPrintBoardSchedule?: () => void;
   studentsCount?: number;
   classroomsCount?: number;
   teachersCount?: number;
@@ -62,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onImportBackup,
   onOpenHelpTips,
   onOpenPrintModal,
+  onPrintBoardSchedule,
   studentsCount = 0,
   classroomsCount = 0,
   teachersCount = 0,
@@ -213,6 +215,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Quick Print & PDF Button */}
             <button
               onClick={() => {
+                if (activeTab === 10) {
+                  if (onPrintBoardSchedule) {
+                    onPrintBoardSchedule();
+                  }
+                  return;
+                }
                 if (onOpenPrintModal) {
                   onOpenPrintModal();
                 } else {
@@ -220,10 +228,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }
               }}
               className="flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-md shadow-emerald-700/20 shrink-0"
-              title="Sınav Salon Planları, Kapı Listeleri ve Resmi Evrakları Yazdır / PDF İndir"
+              title={
+                activeTab === 10
+                  ? 'Pano Sınav Takvimini Yazdır / A4 PDF Al'
+                  : 'Sınav Salon Planları, Kapı Listeleri ve Resmi Evrakları Yazdır / PDF İndir'
+              }
             >
               <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Yazdır</span>
+              <span className="hidden sm:inline">
+                {activeTab === 10 ? 'Takvimi Yazdır' : 'Yazdır'}
+              </span>
             </button>
 
             {/* Help & Tips Button */}

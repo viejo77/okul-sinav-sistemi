@@ -14,7 +14,7 @@ import {
   Users,
   Sparkles,
 } from 'lucide-react';
-import { Exam, Subject, ExamClassAssignment } from '../../types';
+import { Exam, Subject, ExamClassAssignment, SeatingPlanResult } from '../../types';
 
 interface Props {
   exams: Exam[];
@@ -24,7 +24,9 @@ interface Props {
   subjects: Subject[];
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
   availableClasses: string[];
+  savedPlans?: Record<string, SeatingPlanResult>;
   onGoToExamSchedule?: () => void;
+  onGoToPlan?: () => void;
 }
 
 export const ExamDefinitionSection: React.FC<Props> = ({
@@ -35,7 +37,9 @@ export const ExamDefinitionSection: React.FC<Props> = ({
   subjects,
   setSubjects,
   availableClasses,
+  savedPlans,
   onGoToExamSchedule,
+  onGoToPlan,
 }) => {
   const activeExam = exams.find(e => e.id === activeExamId) || exams[0];
 
@@ -535,7 +539,7 @@ export const ExamDefinitionSection: React.FC<Props> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
             <span className="text-slate-500 font-semibold text-[11px]">Sınav Değiştir:</span>
             <select
@@ -543,13 +547,41 @@ export const ExamDefinitionSection: React.FC<Props> = ({
               onChange={e => setActiveExamId(e.target.value)}
               className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs"
             >
-              {exams.map(e => (
-                <option key={e.id} value={e.id}>
-                  {e.name} ({formatToTRDate(e.date)})
-                </option>
-              ))}
+              {exams.map(e => {
+                const hasDistribution = savedPlans && !!savedPlans[e.id];
+                return (
+                  <option key={e.id} value={e.id}>
+                    {hasDistribution ? '✓ ' : '⏳ '}{e.name} ({formatToTRDate(e.date)}) {hasDistribution ? '[Dağıtıldı]' : '[Boş]'}
+                  </option>
+                );
+              })}
             </select>
           </div>
+
+          {/* Active Exam Distribution Status Badge */}
+          {savedPlans && savedPlans[activeExamId] ? (
+            <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold px-2 py-1 rounded-lg text-[10px] flex items-center gap-1">
+              <Check className="w-3 h-3 text-emerald-600" />
+              <span>Dağıtım Hazır</span>
+            </span>
+          ) : (
+            <span className="bg-amber-100 text-amber-800 border border-amber-300 font-extrabold px-2 py-1 rounded-lg text-[10px] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>Dağıtım Boş</span>
+            </span>
+          )}
+
+          {onGoToPlan && (
+            <button
+              type="button"
+              onClick={onGoToPlan}
+              className="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold px-2 py-1 rounded-lg text-xs transition cursor-pointer shadow-2xs"
+              title="Bu sınavın kelebek oturma düzenine git"
+            >
+              <span>5. Oturma Düzeni</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            </button>
+          )}
 
           {exams.length > 1 && (
             <button
