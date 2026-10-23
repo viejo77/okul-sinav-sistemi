@@ -24,6 +24,12 @@ export interface Exam {
   assignedClasses: ExamClassAssignment[];
 }
 
+export interface GradeSubjectConfig {
+  subject: string; // e.g. "Biyoloji"
+  classes: string[]; // e.g. ["11-A", "11-B"]
+  isAllClasses?: boolean; // true if all sections of this grade take it
+}
+
 export interface BoardExamItem {
   id: string;
   date: string; // ISO format "2024-11-04" or TR "04.11.2024"
@@ -34,6 +40,10 @@ export interface BoardExamItem {
   grade10Subject: string; // "Türk Dili ve Edebiyatı" or "-"
   grade11Subject: string; // "Türk Dili ve Edebiyatı" or "-"
   grade12Subject: string; // "Türk Dili ve Edebiyatı" or "-"
+  grade9Configs?: GradeSubjectConfig[];
+  grade10Configs?: GradeSubjectConfig[];
+  grade11Configs?: GradeSubjectConfig[];
+  grade12Configs?: GradeSubjectConfig[];
   examType?: string; // "Kelebek Sistemi"
   notes?: string;
 }

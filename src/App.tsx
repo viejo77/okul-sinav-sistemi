@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { DashboardSection } from './components/sections/DashboardSection';
 import { ExamDefinitionSection } from './components/sections/ExamDefinitionSection';
@@ -10,7 +10,7 @@ import { ClassDistributionsSection } from './components/sections/ClassDistributi
 import { ExamAnalysisSection } from './components/sections/ExamAnalysisSection';
 import { PrintCenterSection } from './components/sections/PrintCenterSection';
 import { ResponsibilityExamSection } from './components/sections/ResponsibilityExamSection';
-import { ExamScheduleSection } from './components/sections/ExamScheduleSection';
+import { ExamScheduleSection, extractClassesFromClassroomName } from './components/sections/ExamScheduleSection';
 import { PrintPreviewModal } from './components/modals/PrintPreviewModal';
 import { HelpTipsModal } from './components/modals/HelpTipsModal';
 import { FloatingHelpWidget } from './components/FloatingHelpWidget';
@@ -114,8 +114,8 @@ export default function App() {
     });
   };
 
-  // State for registering Pano Sınav Takvimi isolated print handler
-  const [boardPrintHandler, setBoardPrintHandler] = useState<(() => void) | null>(null);
+  // Ref for registering Pano Sınav Takvimi isolated print handler (avoids state update loops)
+  const boardPrintHandlerRef = useRef<(() => void) | null>(null);
 
   // Print modal state
   const [printModalMode, setPrintModalMode] = useState<
@@ -307,10 +307,71 @@ export default function App() {
     );
   }, [subjects, activeExam]);
 
-  // Available unique class list (e.g. ["9-A", "9-B", "10-A", "10-B", "11-A", "11-B", "12-A"])
-  const availableClasses = Array.from(
-    new Set(students.map(s => s.classLevel.toUpperCase()))
-  ).sort((a, b) => a.localeCompare(b, 'tr'));
+  // Available unique class list collected across students, exams, classrooms, teachers (gözetmen programı), and custom school classes
+  const availableClasses = React.useMemo(() => {
+    const classSet = new Set<string>();
+
+    // 1. From students
+    students.forEach(s => {
+      if (s.classLevel && s.classLevel.trim()) {
+        classSet.add(s.classLevel.trim());
+      }
+    });
+
+    // 2. From exams (assignedClasses - Sınav Programı)
+    exams.forEach(e => {
+      (e.assignedClasses || []).forEach(ac => {
+        if (ac.classLevel && ac.classLevel.trim()) {
+          classSet.add(ac.classLevel.trim());
+        }
+      });
+    });
+
+    // 3. From classrooms (Sınav Salonları)
+    classrooms.forEach(c => {
+      if (c.name && c.name.trim()) {
+        const extracted = extractClassesFromClassroomName(c.name);
+        extracted.forEach(cls => classSet.add(cls));
+      }
+    });
+
+    // 4. From teachers schedule (Gözetmen Programı)
+    teachers.forEach(t => {
+      (t.schedule || []).forEach(sc => {
+        if (sc.classroomName && sc.classroomName.trim()) {
+          classSet.add(sc.classroomName.trim());
+        }
+      });
+    });
+
+    // 5. From custom saved classes in localStorage
+    try {
+      const customSaved = localStorage.getItem('school_custom_classes');
+      if (customSaved) {
+        const parsed = JSON.parse(customSaved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((cls: string) => {
+            if (typeof cls === 'string' && cls.trim()) {
+              classSet.add(cls.trim().toUpperCase());
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Custom classes load error:', err);
+    }
+
+    if (classSet.size === 0) {
+      return [
+        '9-A', '9-B', '9-C', '9-D',
+        '10-A', '10-B', '10-C', '10-D',
+        '11-A', '11-B', '11-C', '11-D',
+        '12-A', '12-B', '12-C', '12-D',
+      ];
+    }
+
+    return Array.from(classSet).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }));
+  }, [students, exams, classrooms, teachers]);
 
   // Auth Handlers
   const handleGoogleSignIn = async () => {
@@ -443,7 +504,7 @@ export default function App() {
           onImportBackup={handleImportBackup}
           onOpenHelpTips={() => setHelpModalOpen(true)}
           onOpenPrintModal={() => setPrintModalMode('SALON')}
-          onPrintBoardSchedule={boardPrintHandler || undefined}
+          onPrintBoardSchedule={() => boardPrintHandlerRef.current?.()}
           studentsCount={students.length}
           classroomsCount={classrooms.length}
           teachersCount={teachers.length}
@@ -490,11 +551,16 @@ export default function App() {
               subjects={subjects}
               setSubjects={setSubjects}
               availableClasses={availableClasses}
+              classrooms={classrooms}
+              students={students}
+              teachers={teachers}
               activeExamId={activeExamId}
               setActiveExamId={setActiveExamId}
               onNavigateToExamTab={() => setActiveTab(1)}
               onNavigateToSeatingPlan={() => setActiveTab(5)}
-              onRegisterPrintHandler={handler => setBoardPrintHandler(() => handler)}
+              onRegisterPrintHandler={handler => {
+                boardPrintHandlerRef.current = handler;
+              }}
             />
           )}
 
