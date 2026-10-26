@@ -23,6 +23,8 @@ import {
   Check,
   Layers,
   Filter,
+  FileText,
+  Columns,
 } from 'lucide-react';
 import {
   Exam,
@@ -685,23 +687,70 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('ALL'); // ALL, 9, 10, 11, 12
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Page orientation for export and print: 'portrait' (Dikey) or 'landscape' (Yatay)
+  const [pageOrientation, setPageOrientation] = useState<'portrait' | 'landscape'>(() => {
+    return (localStorage.getItem('board_schedule_orientation') as 'portrait' | 'landscape') || 'portrait';
+  });
+
+  const handleSetOrientation = (orient: 'portrait' | 'landscape') => {
+    setPageOrientation(orient);
+    try {
+      localStorage.setItem('board_schedule_orientation', orient);
+    } catch {
+      // ignore
+    }
+    showToast(`✓ Çıktı ve PDF sayfa yönü "${orient === 'landscape' ? 'Yatay (A4 Landscape)' : 'Dikey (A4 Portrait)'}" olarak ayarlandı.`);
+  };
+
+  // Dynamically configure native browser @page rule for print dialog
+  useEffect(() => {
+    let styleTag = document.getElementById('board-schedule-page-orientation-style') as HTMLStyleElement | null;
+    if (pageOrientation === 'landscape') {
+      if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'board-schedule-page-orientation-style';
+        document.head.appendChild(styleTag);
+      }
+      styleTag.textContent = `
+        @media print {
+          @page {
+            size: A4 landscape !important;
+            margin: 4mm !important;
+          }
+        }
+      `;
+    } else {
+      if (styleTag) {
+        styleTag.textContent = `
+          @media print {
+            @page {
+              size: A4 portrait !important;
+              margin: 4mm !important;
+            }
+          }
+        `;
+      }
+    }
+  }, [pageOrientation]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // 1. High-resolution A4 PDF Export (Works 100% in all iframes and mobile browsers)
+  // 1. High-resolution A4 PDF Export (Works in both Portrait and Landscape)
   const handleDownloadPdf = async () => {
     if (!scheduleDocRef.current) return;
+    const isLandscape = pageOrientation === 'landscape';
     try {
       setIsExportingPdf(true);
-      showToast('Pano sınav takvimi resmi A4 PDF olarak hazırlanıyor...');
+      showToast(`Pano sınav takvimi ${isLandscape ? 'Yatay (Landscape)' : 'Dikey (Portrait)'} resmi A4 PDF olarak hazırlanıyor...`);
       await exportToPdf(scheduleDocRef.current, {
-        filename: 'Okul_Pano_Ortak_Sinav_Takvimi.pdf',
-        orientation: 'portrait',
+        filename: `Okul_Pano_Ortak_Sinav_Takvimi_${isLandscape ? 'Yatay' : 'Dikey'}.pdf`,
+        orientation: pageOrientation,
         onProgress: (current, total) => setPdfProgress({ current, total }),
       });
-      showToast('✓ Pano Sınav Takvimi PDF olarak başarıyla indirildi!');
+      showToast(`✓ Pano Sınav Takvimi (${isLandscape ? 'Yatay' : 'Dikey'}) PDF olarak başarıyla indirildi!`);
     } catch (err) {
       console.error('PDF export error:', err);
       showToast('PDF oluşturulurken bir hata oluştu.');
@@ -714,18 +763,23 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
   // 2. Isolated print mode for Noticeboard Exam Schedule ONLY (Hides everything else in #root)
   const handlePrintBoardSchedule = async () => {
     if (!scheduleDocRef.current) return;
+    const isLandscape = pageOrientation === 'landscape';
     if (isInIframe) {
       // In an iframe (AI Studio preview environment), browser security blocks window.print() modal dialogs.
       // Automatically generate and download the high-resolution print PDF directly!
-      showToast('Önizleme ortamında doğrudan yazdırma yerine yazdırmaya hazır resmi A4 PDF hazırlanıyor...');
+      showToast(`Önizleme ortamında doğrudan yazdırma yerine ${isLandscape ? 'yatay' : 'dikey'} resmi A4 PDF hazırlanıyor...`);
       await handleDownloadPdf();
       return;
     }
 
     try {
       document.body.classList.add('is-printing-board-schedule');
+      if (isLandscape) {
+        document.body.classList.add('is-landscape-print');
+      }
       const cleanUp = () => {
         document.body.classList.remove('is-printing-board-schedule');
+        document.body.classList.remove('is-landscape-print');
         window.removeEventListener('afterprint', cleanUp);
       };
       window.addEventListener('afterprint', cleanUp, { once: true });
@@ -733,11 +787,12 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
 
       printElementDirectly(scheduleDocRef.current, {
         title: 'Okul_Pano_Ortak_Sinav_Takvimi',
-        landscape: false,
+        landscape: isLandscape,
       });
     } catch (err) {
       console.warn('Native print failed, falling back to PDF download:', err);
       document.body.classList.remove('is-printing-board-schedule');
+      document.body.classList.remove('is-landscape-print');
       await handleDownloadPdf();
     }
   };
@@ -1216,7 +1271,7 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
 
   // Render a cell for the noticeboard table
   const renderGradeSubjectCell = (session: BoardExamItem, grade: '9' | '10' | '11' | '12') => {
-    const configs = getEffectiveConfigs(session, grade, availableClasses, customClasses);
+    const configs = getEffectiveConfigs(session, grade, availableClasses, customClasses, classrooms, students, exams, teachers);
     const activeConfigs = configs.filter(
       c => c.subject && c.subject !== '— (Ders İşlenecek)' && c.subject !== '-' && c.subject.trim().length > 0
     );
@@ -1229,22 +1284,7 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
       );
     }
 
-    const allSections = getSectionsForGrade(grade, availableClasses, customClasses);
-
-    // Compute which classes are covered by exams
-    const coveredClasses = new Set<string>();
-    activeConfigs.forEach(cfg => {
-      if (cfg.isAllClasses) {
-        allSections.forEach(s => coveredClasses.add(s));
-      } else {
-        cfg.classes?.forEach(c => {
-          const matched = allSections.find(s => isClassMatching(s, c));
-          if (matched) coveredClasses.add(matched);
-          else coveredClasses.add(c);
-        });
-      }
-    });
-    const unassignedSections = allSections.filter(s => !coveredClasses.has(s));
+    const allSections = getSectionsForGrade(grade, availableClasses, customClasses, classrooms, students, exams, teachers);
 
     return (
       <div className="flex flex-col items-center gap-1 py-0.5">
@@ -1256,6 +1296,7 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
               <span className="font-black text-slate-900 text-[11.5px] leading-tight">
                 {cfg.subject}
               </span>
+              {/* Only show the branches that ARE taking the exam. Non-exam branches are NEVER listed. */}
               {!isFullGrade && cfg.classes && cfg.classes.length > 0 && (
                 <div className="flex flex-wrap items-center justify-center gap-1 mt-1">
                   {cfg.classes.map(cls => (
@@ -1271,13 +1312,6 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
             </div>
           );
         })}
-
-        {/* If some sections in this grade do NOT take an exam this hour */}
-        {unassignedSections.length > 0 && unassignedSections.length < allSections.length && (
-          <div className="text-[9.5px] text-amber-800 font-bold bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 print:border-none print:bg-transparent print:text-slate-600">
-            Kalan ({unassignedSections.map(s => formatSectionDisplayLabel(s)).join(', ')}): Ders
-          </div>
-        )}
       </div>
     );
   };
@@ -1345,12 +1379,42 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
             <span>Pano Başlığı & İdare Onayı</span>
           </button>
 
+          {/* Orientation Toggle: Dikey vs Yatay Çıktı */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-300 text-xs shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleSetOrientation('portrait')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition cursor-pointer font-bold ${
+                pageOrientation === 'portrait'
+                  ? 'bg-purple-700 text-white shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Dikey A4 sayfa formatı (standart okul panosu)"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>📄 Dikey</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetOrientation('landscape')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition cursor-pointer font-bold ${
+                pageOrientation === 'landscape'
+                  ? 'bg-purple-700 text-white shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Yatay A4 sayfa formatı (geniş tablo ve ferah sütunlar)"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>📐 Yatay Çıktı</span>
+            </button>
+          </div>
+
           {/* Download Official A4 PDF Button */}
           <button
             onClick={handleDownloadPdf}
             disabled={isExportingPdf}
             className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 disabled:bg-slate-300 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-            title="Sadece bu sınav takvimini yüksek çözünürlüklü MEB standartlarında A4 PDF dosyası olarak indirir"
+            title={`Sadece bu sınav takvimini ${pageOrientation === 'landscape' ? 'yatay' : 'dikey'} yüksek çözünürlüklü MEB standartlarında A4 PDF dosyası olarak indirir`}
           >
             {isExportingPdf ? (
               <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
@@ -1362,7 +1426,9 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
                 ? pdfProgress
                   ? `Hazırlanıyor (${pdfProgress.current}/${pdfProgress.total})...`
                   : 'PDF Hazırlanıyor...'
-                : '📥 A4 PDF İndir'}
+                : pageOrientation === 'landscape'
+                ? '📥 Yatay A4 PDF İndir'
+                : '📥 Dikey A4 PDF İndir'}
             </span>
           </button>
 
@@ -1370,10 +1436,10 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
           <button
             onClick={handlePrintBoardSchedule}
             className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-3.5 py-1.5 rounded-lg text-xs shadow-md transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-            title="Sadece bu takvimi yazdırır, sınav programı veya oturma planı verilerini dahil etmez"
+            title={`Sadece bu takvimi ${pageOrientation === 'landscape' ? 'yatay' : 'dikey'} yazdırır`}
           >
             <Printer className="w-4 h-4" />
-            <span>🖨️ Panoya Asmak İçin Yazdır</span>
+            <span>{pageOrientation === 'landscape' ? '🖨️ Yatay Panoya Yazdır' : '🖨️ Panoya Asmak İçin Yazdır'}</span>
           </button>
         </div>
       </div>
@@ -1514,8 +1580,12 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
         id="board-schedule-print-document"
         ref={scheduleDocRef}
         data-pdf-page="true"
-        data-orientation="portrait"
-        className="bg-white rounded-2xl border-2 border-slate-300 p-6 sm:p-8 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:w-full"
+        data-orientation={pageOrientation}
+        className={`bg-white rounded-2xl border-2 border-slate-300 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:w-full transition-all ${
+          pageOrientation === 'landscape'
+            ? 'p-5 sm:p-7 w-full max-w-[1240px] mx-auto'
+            : 'p-6 sm:p-8 w-full max-w-4xl mx-auto'
+        }`}
       >
         {/* Printable Official School Header */}
         <div className="text-center border-b-2 border-slate-900 pb-4 mb-4">
@@ -1528,8 +1598,11 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
           <div className="inline-block bg-slate-900 text-white font-black text-xs sm:text-sm px-4 py-1 rounded-full uppercase tracking-wide mt-2">
             {academicYearTerm}
           </div>
-          <div className="text-[11px] font-bold text-purple-900 tracking-wider uppercase mt-1.5">
-            📢 ÖĞRENCİ VE ÖĞRETMEN DUYURU PANOSU SINAV İLAN ÇİZELGESİ
+          <div className="text-[11px] font-bold text-purple-900 tracking-wider uppercase mt-1.5 flex items-center justify-center gap-2">
+            <span>📢 ÖĞRENCİ VE ÖĞRETMEN DUYURU PANOSU SINAV İLAN ÇİZELGESİ</span>
+            <span className="no-print text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded font-black">
+              {pageOrientation === 'landscape' ? '📐 Yatay Format' : '📄 Dikey Format'}
+            </span>
           </div>
         </div>
 
@@ -1539,13 +1612,13 @@ export const ExamScheduleSection: React.FC<ExamScheduleSectionProps> = ({
             <thead>
               <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-900 font-black text-center uppercase tracking-wider text-[11px]">
                 <th className="border border-slate-800 p-2 w-10">S.No</th>
-                <th className="border border-slate-800 p-2 w-32">Sınav Tarihi & Gün</th>
-                <th className="border border-slate-800 p-2 w-36">Ders Saati</th>
+                <th className={`border border-slate-800 p-2 ${pageOrientation === 'landscape' ? 'w-40' : 'w-32'}`}>Sınav Tarihi & Gün</th>
+                <th className={`border border-slate-800 p-2 ${pageOrientation === 'landscape' ? 'w-44' : 'w-36'}`}>Ders Saati</th>
                 <th className="border border-slate-800 p-2 font-black">9. Sınıflar</th>
                 <th className="border border-slate-800 p-2 font-black">10. Sınıflar</th>
                 <th className="border border-slate-800 p-2 font-black">11. Sınıflar</th>
                 <th className="border border-slate-800 p-2 font-black">12. Sınıflar</th>
-                <th className="border border-slate-800 p-2 w-28">Sınav Şekli</th>
+                <th className={`border border-slate-800 p-2 ${pageOrientation === 'landscape' ? 'w-36' : 'w-28'}`}>Sınav Şekli</th>
                 <th className="border border-slate-800 p-2 w-20 no-print">İşlem</th>
               </tr>
             </thead>
