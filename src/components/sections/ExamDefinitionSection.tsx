@@ -439,12 +439,17 @@ export const ExamDefinitionSection: React.FC<Props> = ({
     showToast(`${selectedClassToAssign} atandı.`);
   };
 
-  const handleDeleteSelectedAssignment = (assignmentIdToDelete?: string) => {
+  const handleDeleteSelectedAssignment = (identifier?: string) => {
     if (!activeExam) return;
-    const id = assignmentIdToDelete || selectedAssignmentId;
-    if (!id) return;
+    const targetKey = identifier || selectedAssignmentId;
+    if (!targetKey) {
+      showToast('Lütfen silmek istediğiniz sınıfı seçiniz.');
+      return;
+    }
 
-    const target = activeExam.assignedClasses.find(ac => ac.id === id);
+    const target = activeExam.assignedClasses.find(
+      ac => ac.id === targetKey || ac.classLevel === targetKey
+    );
     const targetName = target ? target.classLevel : 'Sınıf';
 
     setExams(prev =>
@@ -452,12 +457,14 @@ export const ExamDefinitionSection: React.FC<Props> = ({
         ex.id === activeExam.id
           ? {
               ...ex,
-              assignedClasses: ex.assignedClasses.filter(ac => ac.id !== id),
+              assignedClasses: ex.assignedClasses.filter(
+                ac => ac.id !== targetKey && ac.classLevel !== targetKey
+              ),
             }
           : ex
       )
     );
-    if (selectedAssignmentId === id) {
+    if (selectedAssignmentId === targetKey || (target && target.id === selectedAssignmentId)) {
       setSelectedAssignmentId(null);
     }
     showToast(`${targetName} ataması silindi.`);
@@ -471,6 +478,27 @@ export const ExamDefinitionSection: React.FC<Props> = ({
     );
     setSelectedAssignmentId(null);
     showToast(`Tüm sınıf atamaları (${count} şube) silindi.`);
+  };
+
+  const handleBatchRemoveLevel = (level: string) => {
+    if (!activeExam || activeExam.assignedClasses.length === 0) return;
+    setExams(prev =>
+      prev.map(ex =>
+        ex.id === activeExam.id
+          ? {
+              ...ex,
+              assignedClasses: ex.assignedClasses.filter(ac => {
+                const grp =
+                  ac.classLevel.match(/(?:^|[^0-9])(9|10|11|12)(?:[^0-9]|$)/i)?.[1] ||
+                  ac.classLevel.match(/\d+/)?.[0];
+                return grp !== level;
+              }),
+            }
+          : ex
+      )
+    );
+    setSelectedAssignmentId(null);
+    showToast(`${level}. sınıflar bu sınavdan silindi.`);
   };
 
   // Quick batch assign for class levels (e.g. all 9th or 10th grades)
@@ -944,19 +972,35 @@ export const ExamDefinitionSection: React.FC<Props> = ({
               </div>
 
               {/* Quick Batch Assign Badges */}
-              <div className="flex items-center gap-1 pt-0.5 text-[10px] text-slate-500">
-                <span className="font-semibold">Hızlı Kademe Ata:</span>
-                {['9', '10', '11', '12'].map(lvl => (
-                  <button
-                    key={lvl}
-                    type="button"
-                    onClick={() => handleBatchAssignLevel(lvl)}
-                    className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 transition cursor-pointer"
-                    title={`Tüm ${lvl}. sınıflara seçili dersi ata`}
-                  >
-                    Tüm {lvl}'lar
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5 text-[10px] text-slate-500">
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold">Hızlı Ata:</span>
+                  {['9', '10', '11', '12'].map(lvl => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => handleBatchAssignLevel(lvl)}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 transition cursor-pointer"
+                      title={`Tüm ${lvl}. sınıflara seçili dersi ata`}
+                    >
+                      {lvl}'lar
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold text-rose-700">Sil:</span>
+                  {['9', '10', '11', '12'].map(lvl => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => handleBatchRemoveLevel(lvl)}
+                      className="px-1.5 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 transition cursor-pointer"
+                      title={`Sınavdan tüm ${lvl}. sınıfları kaldır`}
+                    >
+                      {lvl}'ları Sil
+                    </button>
+                  ))}
+                </div>
               </div>
             </form>
 
@@ -978,8 +1022,8 @@ export const ExamDefinitionSection: React.FC<Props> = ({
                     const isSelected = selectedAssignmentId === ac.id;
                     return (
                       <div
-                        key={ac.id}
-                        onClick={() => setSelectedAssignmentId(ac.id)}
+                        key={ac.id || ac.classLevel}
+                        onClick={() => setSelectedAssignmentId(ac.id || ac.classLevel)}
                         className={`grid grid-cols-12 items-center py-1 px-2 cursor-pointer transition select-none ${
                           isSelected
                             ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600'
@@ -996,7 +1040,7 @@ export const ExamDefinitionSection: React.FC<Props> = ({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteSelectedAssignment(ac.id);
+                              handleDeleteSelectedAssignment(ac.id || ac.classLevel);
                             }}
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                             title={`${ac.classLevel} atamasını sil`}

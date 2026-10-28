@@ -1,16 +1,79 @@
-import React from 'react';
-import { SeatingPlanResult } from '../../types';
+import React, { useMemo } from 'react';
+import { SeatingPlanResult, Exam, Subject } from '../../types';
 import { PrintHeader } from './PrintHeader';
 
 interface Props {
   plan: SeatingPlanResult;
+  exam?: Exam;
+  subjects?: Subject[];
   forPrint?: boolean;
 }
 
-export const SupervisorListPrint: React.FC<Props> = ({ plan, forPrint = false }) => {
+export const SupervisorListPrint: React.FC<Props> = ({
+  plan,
+  exam,
+  subjects,
+  forPrint = false,
+}) => {
   const totalSupervisors = plan.rooms.length;
-  const totalCommission = plan.commissionMembers.length;
   const totalAssignedStudents = plan.rooms.reduce((acc, r) => acc + r.totalAssigned, 0);
+
+  // Synthesize or retrieve commissions per subject
+  const resolvedCommissions = useMemo(() => {
+    if (plan.subjectCommissions && plan.subjectCommissions.length > 0) {
+      return plan.subjectCommissions;
+    }
+
+    if (exam && exam.assignedClasses && exam.assignedClasses.length > 0) {
+      const subjectMap = new Map<string, Subject>();
+      if (subjects) {
+        subjects.forEach(s => {
+          subjectMap.set(s.id, s);
+          subjectMap.set(s.name.toLowerCase().trim(), s);
+        });
+      }
+
+      const map = new Map<string, { subjectName: string; teachers: string[]; classes: string[] }>();
+      exam.assignedClasses.forEach(ac => {
+        const sName = ac.subjectName || exam.subjectName || plan.subjectName;
+        const matched = subjectMap.get(ac.subjectId) || subjectMap.get(sName.toLowerCase().trim());
+        if (!map.has(sName)) {
+          map.set(sName, {
+            subjectName: sName,
+            teachers: matched?.teachers || [],
+            classes: [],
+          });
+        }
+        map.get(sName)!.classes.push(ac.classLevel);
+      });
+
+      const list = Array.from(map.values());
+      if (list.length > 0) return list;
+    }
+
+    return [
+      {
+        subjectName: plan.subjectName,
+        teachers: plan.commissionMembers,
+        classes: [],
+      },
+    ];
+  }, [plan, exam, subjects]);
+
+  const totalCommissionCount = useMemo(() => {
+    const unique = new Set<string>();
+    resolvedCommissions.forEach(sc => {
+      sc.teachers.forEach(t => unique.add(t.trim().toLowerCase()));
+    });
+    return Math.max(unique.size, plan.commissionMembers.length);
+  }, [resolvedCommissions, plan.commissionMembers]);
+
+  const displaySubjectName = useMemo(() => {
+    if (resolvedCommissions.length > 1) {
+      return resolvedCommissions.map(s => s.subjectName).join(' • ');
+    }
+    return plan.subjectName;
+  }, [resolvedCommissions, plan.subjectName]);
 
   return (
     <div className={`${forPrint ? 'print-only' : ''} font-sans text-black leading-tight`}>
@@ -28,12 +91,12 @@ export const SupervisorListPrint: React.FC<Props> = ({ plan, forPrint = false })
             examName={plan.examName}
             examDate={plan.examDate}
             examPeriod={plan.examPeriod}
-            subjectName={plan.subjectName}
-            badgeText={`${totalSupervisors} Salon • ${totalCommission} Komisyon • ${totalAssignedStudents} Öğrenci`}
+            subjectName={displaySubjectName}
+            badgeText={`${totalSupervisors} Salon • ${totalCommissionCount} Komisyon • ${totalAssignedStudents} Öğrenci`}
           />
 
-          {/* Section 1: Sınav Dersi Komisyon Üyeleri */}
-          <div className="mb-4">
+          {/* Section 1: Sınav Dersi Komisyon Üyeleri (Aynı saatteki her ders için ayrı ayrı) */}
+          <div className="mb-4 space-y-2.5">
             <div className="bg-black text-white px-3 py-1.5 rounded-t-lg font-black text-xs uppercase flex justify-between items-center">
               <span className="flex items-center gap-1.5">
                 <span>⚖️</span>
@@ -44,40 +107,59 @@ export const SupervisorListPrint: React.FC<Props> = ({ plan, forPrint = false })
               </span>
             </div>
 
-            <table className="w-full border-collapse border-2 border-black text-xs">
-              <thead>
-                <tr className="bg-slate-100 border-b-2 border-black text-black font-extrabold text-[10px] uppercase">
-                  <th className="border border-black p-1.5 text-center w-10">S.No</th>
-                  <th className="border border-black p-1.5 text-left">Öğretmen Adı Soyadı</th>
-                  <th className="border border-black p-1.5 text-left w-56">Görevi / Branşı</th>
-                  <th className="border border-black p-1.5 text-center w-36">İmza</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.commissionMembers.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="border border-black p-2 text-center text-slate-500 italic">
-                      Komisyon üyesi tanımlanmamış.
-                    </td>
-                  </tr>
-                ) : (
-                  plan.commissionMembers.map((member, idx) => (
-                    <tr key={idx} className="border-b border-black bg-white">
-                      <td className="border border-black p-1.5 text-center font-mono font-bold text-black">
-                        {idx + 1}
-                      </td>
-                      <td className="border border-black p-1.5 font-black text-black">
-                        {member}
-                      </td>
-                      <td className="border border-black p-1.5 text-black text-[11px] font-medium">
-                        Sınav Komisyon Üyesi ({plan.subjectName})
-                      </td>
-                      <td className="border border-black p-1.5 text-center"></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            {resolvedCommissions.map((subComm, sIdx) => {
+              const classesLabel =
+                subComm.classes && subComm.classes.length > 0
+                  ? ` • Sınava Giren Şubeler: ${subComm.classes.join(', ')}`
+                  : '';
+
+              return (
+                <div key={sIdx} className="border-2 border-black rounded-lg overflow-hidden bg-white">
+                  <div className="bg-slate-200 border-b border-black px-2.5 py-1 text-black font-black text-[11px] uppercase flex justify-between items-center">
+                    <span>
+                      {resolvedCommissions.length > 1 ? `${sIdx + 1}. DERS: ` : ''}
+                      {subComm.subjectName} KOMİSYONU
+                    </span>
+                    <span className="text-[9.5px] font-bold text-slate-700">{classesLabel}</span>
+                  </div>
+
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-black text-black font-extrabold text-[10px] uppercase">
+                        <th className="border-r border-black p-1 text-center w-10">S.No</th>
+                        <th className="border-r border-black p-1 text-left">Öğretmen Adı Soyadı</th>
+                        <th className="border-r border-black p-1 text-left w-64">Görevi / Branşı</th>
+                        <th className="p-1 text-center w-36">İmza</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black">
+                      {subComm.teachers.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="p-1.5 text-center text-slate-500 italic text-[11px]">
+                            {subComm.subjectName} dersi için komisyon üyesi tanımlanmamış.
+                          </td>
+                        </tr>
+                      ) : (
+                        subComm.teachers.map((member, idx) => (
+                          <tr key={idx} className="bg-white">
+                            <td className="border-r border-black p-1 text-center font-mono font-bold text-black text-[11px]">
+                              {idx + 1}
+                            </td>
+                            <td className="border-r border-black p-1 font-black text-black text-[11px]">
+                              {member}
+                            </td>
+                            <td className="border-r border-black p-1 text-black text-[10.5px] font-medium">
+                              Sınav Komisyon Üyesi ({subComm.subjectName})
+                            </td>
+                            <td className="p-1 text-center"></td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
           </div>
 
           {/* Section 2: Salon Sınav Gözetmenleri */}

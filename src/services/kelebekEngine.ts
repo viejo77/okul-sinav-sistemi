@@ -10,11 +10,23 @@ import {
 } from '../types';
 
 /**
- * Extracts grade level number from class level string (e.g. "9-A" -> "9", "10-C" -> "10", "11B" -> "11")
+ * Extracts grade level number from class level string (e.g. "9-A" -> "9", "ATP 9-A" -> "9", "AMP 9-B" -> "9", "MES9" -> "9", "10-C" -> "10", "11B" -> "11")
  */
 export const getGradeLevel = (classLevel: string): string => {
-  const match = classLevel.match(/^\d+/);
-  return match ? match[0] : classLevel;
+  if (!classLevel) return '';
+  const trimmed = classLevel.trim();
+  // Check for 9, 10, 11, 12 bounded by non-digits or start/end
+  const gradeMatch = trimmed.match(/(?:^|[^0-9])(9|10|11|12)(?:[^0-9]|$)/i);
+  if (gradeMatch) {
+    return gradeMatch[1];
+  }
+  // Secondary school fallback (5-8)
+  const secMatch = trimmed.match(/(?:^|[^0-9])([5-8])(?:[^0-9]|$)/i);
+  if (secMatch) {
+    return secMatch[1];
+  }
+  const digits = trimmed.match(/\d+/);
+  return digits ? digits[0] : trimmed.toUpperCase();
 };
 
 /**
@@ -47,6 +59,7 @@ export interface MultipleTeacherConflict {
 export interface KelebekEngineInput {
   exam: Exam;
   subject: Subject;
+  subjects?: Subject[]; // All registered school subjects for multi-subject commission lookup
   students: Student[];
   classrooms: Classroom[];
   teachers: Teacher[];
@@ -137,8 +150,73 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
   const { exam, subject, students, classrooms, teachers, savedPlans, preferredSupervisors } = input;
   const warnings: string[] = [];
 
-  // 1. Identify Commission Members (Soru Hazırlayan/Branş Öğretmenleri)
-  const commissionMembers = subject.teachers || [];
+  // 1. Multi-Subject Commission Identification & Class-Subject Mapping
+  const classSubjectMap: Record<string, string> = {};
+  const subjectMap = new Map<string, Subject>();
+  if (input.subjects) {
+    input.subjects.forEach(s => {
+      subjectMap.set(s.id, s);
+      subjectMap.set(s.name.toLowerCase().trim(), s);
+    });
+  }
+  if (subject) {
+    subjectMap.set(subject.id, subject);
+    subjectMap.set(subject.name.toLowerCase().trim(), subject);
+  }
+
+  // Group classes by subject
+  const subjectClassGroup = new Map<string, { subjectName: string; subjectId: string; classes: string[] }>();
+
+  exam.assignedClasses.forEach(ac => {
+    const sName = ac.subjectName || exam.subjectName || subject.name;
+    const sId = ac.subjectId || subject.id;
+    classSubjectMap[ac.classLevel] = sName;
+    classSubjectMap[ac.classLevel.toUpperCase().trim()] = sName;
+
+    const groupKey = sId || sName;
+    if (!subjectClassGroup.has(groupKey)) {
+      subjectClassGroup.set(groupKey, { subjectName: sName, subjectId: sId, classes: [] });
+    }
+    subjectClassGroup.get(groupKey)!.classes.push(ac.classLevel);
+  });
+
+  const subjectCommissions: {
+    subjectName: string;
+    subjectCode?: string;
+    teachers: string[];
+    classes: string[];
+  }[] = [];
+
+  const allCommissionTeachers = new Set<string>();
+
+  if (subjectClassGroup.size === 0) {
+    const defaultTeachers = subject.teachers || [];
+    defaultTeachers.forEach(t => allCommissionTeachers.add(t.trim()));
+    subjectCommissions.push({
+      subjectName: subject.name || exam.subjectName,
+      subjectCode: subject.code,
+      teachers: defaultTeachers,
+      classes: exam.assignedClasses.map(ac => ac.classLevel),
+    });
+  } else {
+    subjectClassGroup.forEach(grp => {
+      const matchedSubject = subjectMap.get(grp.subjectId) || subjectMap.get(grp.subjectName.toLowerCase().trim());
+      const teachersList = matchedSubject?.teachers && matchedSubject.teachers.length > 0
+        ? matchedSubject.teachers
+        : (grp.subjectName.toLowerCase().trim() === subject.name.toLowerCase().trim() ? (subject.teachers || []) : []);
+
+      teachersList.forEach(t => allCommissionTeachers.add(t.trim()));
+
+      subjectCommissions.push({
+        subjectName: grp.subjectName,
+        subjectCode: matchedSubject?.code,
+        teachers: teachersList,
+        classes: grp.classes,
+      });
+    });
+  }
+
+  const commissionMembers = Array.from(allCommissionTeachers);
   const commissionSet = new Set(commissionMembers.map(m => m.toLowerCase().trim()));
 
   // 2. Filter students who belong to the exam's assigned classes
@@ -582,14 +660,20 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
         const partnerSeat = ctx.matrix[c][r][1 - s];
         if (partnerSeat?.student) {
           const partnerStudent = partnerSeat.student;
+          const partnerGrade = getGradeLevel(partnerStudent.classLevel);
           if (partnerStudent.classLevel === classKey) {
             // KESİN KURAL: Aynı sırada asla aynı sınıftan öğrenci yan yana oturamaz!
             score -= 10000;
-          } else if (getGradeLevel(partnerStudent.classLevel) === candidateGrade) {
-            score -= 1500;
+          } else if (partnerGrade === candidateGrade) {
+            // KESİN KURAL: Önünde hangi ek olursa olsun (örn: ATP 9 ile AMP 9) aynı kademe asla yan yana oturamaz!
+            if (uniqueGrades.length > 1) {
+              score -= 10000;
+            } else {
+              score -= 2500;
+            }
           } else {
             // Farklı kademe: İdeal kelebek eşleşmesi
-            score += 350;
+            score += 450;
           }
         }
       }
@@ -798,6 +882,8 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
     rooms: roomContexts.map(rc => rc.plan),
     unassignedStudents,
     commissionMembers,
+    subjectCommissions,
+    classSubjectMap,
     warnings,
   };
 }

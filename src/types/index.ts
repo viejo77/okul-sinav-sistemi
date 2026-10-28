@@ -122,6 +122,13 @@ export interface RoomSeatingPlan {
   classDistribution: Record<string, number>; // { "9-A": 5, "10-B": 6 }
 }
 
+export interface SubjectCommissionInfo {
+  subjectName: string;
+  subjectCode?: string;
+  teachers: string[];
+  classes: string[];
+}
+
 export interface SeatingPlanResult {
   examId: string;
   examName: string;
@@ -131,7 +138,9 @@ export interface SeatingPlanResult {
   generatedAt: string;
   rooms: RoomSeatingPlan[];
   unassignedStudents: Student[];
-  commissionMembers: string[]; // Bu sınavın komisyon üyeleri
+  commissionMembers: string[]; // Bu sınavın tüm komisyon üyeleri
+  subjectCommissions?: SubjectCommissionInfo[]; // Ayrı derslere göre komisyon dağılımı
+  classSubjectMap?: Record<string, string>; // Her şubenin girdiği sınav dersi eşleştirmesi
   warnings: string[];
 }
 

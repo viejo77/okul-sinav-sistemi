@@ -601,6 +601,7 @@ export default function App() {
               savedPlans={savedPlans}
               onClearPlanForActiveExam={handleClearCurrentPlan}
               subject={activeSubject}
+              subjects={subjects}
               students={students}
               classrooms={classrooms}
               teachers={teachers}
@@ -693,6 +694,8 @@ export default function App() {
         <PrintPreviewModal
           initialMode={printModalMode}
           plan={currentPlan}
+          exam={activeExam}
+          subjects={subjects}
           onClose={() => setPrintModalMode(null)}
         />
       )}
@@ -701,9 +704,9 @@ export default function App() {
       {currentPlan && activeTab === 8 && (
         <div className="print-only">
           <SalonSeatingPrint plan={currentPlan} forPrint={true} />
-          <SupervisorListPrint plan={currentPlan} forPrint={true} />
+          <SupervisorListPrint plan={currentPlan} exam={activeExam} subjects={subjects} forPrint={true} />
           <BEPStudentPrint plan={currentPlan} forPrint={true} />
-          <ClassDoorListsPrint plan={currentPlan} forPrint={true} />
+          <ClassDoorListsPrint plan={currentPlan} exam={activeExam} forPrint={true} />
         </div>
       )}
 

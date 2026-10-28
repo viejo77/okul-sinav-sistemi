@@ -41,6 +41,7 @@ interface Props {
   savedPlans?: Record<string, SeatingPlanResult>;
   onClearPlanForActiveExam?: () => void;
   subject: Subject | undefined;
+  subjects?: Subject[];
   students: Student[];
   classrooms: Classroom[];
   teachers: Teacher[];
@@ -58,6 +59,7 @@ export const SeatingPlanSection: React.FC<Props> = ({
   savedPlans,
   onClearPlanForActiveExam,
   subject,
+  subjects,
   students,
   classrooms,
   teachers,
@@ -109,6 +111,7 @@ export const SeatingPlanSection: React.FC<Props> = ({
       const plan = generateKelebekPlan({
         exam: activeExam,
         subject: safeSubject,
+        subjects,
         students,
         classrooms,
         teachers,
@@ -245,7 +248,10 @@ export const SeatingPlanSection: React.FC<Props> = ({
         isOpen={conflictsModalOpen}
         onClose={() => setConflictsModalOpen(false)}
         conflicts={detectedConflicts}
-        onConfirm={selections => executeGeneration(selections)}
+        onConfirm={selections => {
+          setConflictsModalOpen(false);
+          executeGeneration(selections);
+        }}
       />
 
       {/* TOP HEADER BAR (With Active Exam Switcher & Distribution Status) */}

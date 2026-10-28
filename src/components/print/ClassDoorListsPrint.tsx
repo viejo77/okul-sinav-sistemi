@@ -1,8 +1,9 @@
 import React from 'react';
-import { SeatingPlanResult, Student } from '../../types';
+import { SeatingPlanResult, Student, Exam } from '../../types';
 
 interface Props {
   plan: SeatingPlanResult;
+  exam?: Exam;
   selectedClassFilter?: string; // If user selects a specific class to print, or 'ALL'
   forPrint?: boolean;
 }
@@ -16,9 +17,38 @@ interface SeatedStudentEntry {
 
 export const ClassDoorListsPrint: React.FC<Props> = ({
   plan,
+  exam,
   selectedClassFilter = 'ALL',
   forPrint = false,
 }) => {
+  // Helper to get class-specific subject exam
+  const getClassSubject = (cls: string): string => {
+    const cleanCls = cls.trim().toUpperCase();
+
+    // 1. Check plan.classSubjectMap
+    if (plan.classSubjectMap) {
+      if (plan.classSubjectMap[cls]) return plan.classSubjectMap[cls];
+      if (plan.classSubjectMap[cleanCls]) return plan.classSubjectMap[cleanCls];
+    }
+
+    // 2. Check exam.assignedClasses
+    if (exam && exam.assignedClasses) {
+      const match = exam.assignedClasses.find(
+        ac => ac.classLevel.trim().toUpperCase() === cleanCls
+      );
+      if (match?.subjectName) return match.subjectName;
+    }
+
+    // 3. Check plan.subjectCommissions
+    if (plan.subjectCommissions) {
+      const match = plan.subjectCommissions.find(sc =>
+        sc.classes.some(c => c.trim().toUpperCase() === cleanCls)
+      );
+      if (match?.subjectName) return match.subjectName;
+    }
+
+    return plan.subjectName;
+  };
   // 1. Group all seated students by classLevel
   const classMap: Record<string, SeatedStudentEntry[]> = {};
 
@@ -127,6 +157,7 @@ export const ClassDoorListsPrint: React.FC<Props> = ({
               const midPoint = Math.ceil(students.length / 2);
               const col1Students = isLargeClass ? students.slice(0, midPoint) : students;
               const col2Students = isLargeClass ? students.slice(midPoint) : [];
+              const classSubject = getClassSubject(clsName);
 
               return (
                 <div
@@ -167,7 +198,7 @@ export const ClassDoorListsPrint: React.FC<Props> = ({
                       <div className="pt-1 flex flex-wrap justify-between items-center text-[9px] text-slate-800 font-semibold gap-x-2">
                         <span>📅 <strong>Tarih:</strong> {plan.examDate}</span>
                         <span>⏰ <strong>Saat:</strong> {plan.examPeriod}. Ders</span>
-                        <span>📖 <strong>Ders:</strong> <strong className="text-black">{plan.subjectName}</strong></span>
+                        <span>📖 <strong>Ders:</strong> <strong className="text-black uppercase">{classSubject}</strong></span>
                       </div>
                     </div>
 

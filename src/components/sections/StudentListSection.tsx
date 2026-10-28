@@ -87,6 +87,46 @@ export const StudentListSection: React.FC<Props> = ({
 
   // Editing state
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editSurname, setEditSurname] = useState('');
+  const [editClassLevel, setEditClassLevel] = useState('');
+  const [editNumber, setEditNumber] = useState('');
+  const [editIsBEP, setEditIsBEP] = useState(false);
+
+  const handleStartEditStudent = (std: Student) => {
+    setEditingStudent(std);
+    setEditName(std.name);
+    setEditSurname(std.surname);
+    setEditClassLevel(std.classLevel);
+    setEditNumber(std.number);
+    setEditIsBEP(Boolean(std.isBEP));
+  };
+
+  const handleSaveEditStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    if (!editName.trim() || !editSurname.trim() || !editClassLevel.trim() || !editNumber.trim()) {
+      showToast('Lütfen tüm zorunlu alanları doldurunuz.');
+      return;
+    }
+
+    const updated: Student = {
+      ...editingStudent,
+      name: editName.trim().toUpperCase(),
+      surname: editSurname.trim().toUpperCase(),
+      classLevel: editClassLevel.trim().toUpperCase(),
+      number: editNumber.trim(),
+      isBEP: editIsBEP,
+    };
+
+    setStudents(prev => {
+      const replaced = prev.map(s => (s.id === editingStudent.id ? updated : s));
+      return sortStudentsByClassAndNumber(replaced);
+    });
+
+    setEditingStudent(null);
+    showToast(`${updated.name} ${updated.surname} bilgileri güncellendi.`);
+  };
 
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -613,7 +653,16 @@ export const StudentListSection: React.FC<Props> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleStartEditStudent(selectedStudent)}
+                  className="py-1 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[11px] cursor-pointer shadow-2xs transition flex items-center gap-1"
+                  title="Öğrenciyi düzenle"
+                >
+                  <Edit2 className="w-3 h-3" />
+                  <span>Düzenle</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleToggleBEP(selectedStudent.id)}
@@ -623,12 +672,12 @@ export const StudentListSection: React.FC<Props> = ({
                       : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  {selectedStudent.isBEP ? 'BEP İşaretini Kaldır' : 'BEP Olarak İşaretle'}
+                  {selectedStudent.isBEP ? 'BEP Kaldır' : 'BEP Yap'}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDeleteStudent(selectedStudent.id)}
-                  className="py-1 px-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] cursor-pointer shadow-2xs transition"
+                  className="py-1 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] cursor-pointer shadow-2xs transition"
                   title="Öğrenciyi sil"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -695,17 +744,18 @@ export const StudentListSection: React.FC<Props> = ({
             <table className="w-full border-collapse text-left text-xs select-none">
               <thead className="sticky top-0 z-10 bg-blue-600 text-white font-bold text-[11.5px] shadow-xs">
                 <tr>
-                  <th className="py-2.5 px-3.5 tracking-wider w-[32%]">Ad Soyad</th>
-                  <th className="py-2.5 px-3 tracking-wider w-[16%]">Sınıf</th>
-                  <th className="py-2.5 px-3 tracking-wider text-center w-[12%]">Numara</th>
-                  <th className="py-2.5 px-3.5 tracking-wider w-[30%]">Sınav Dersi</th>
-                  <th className="py-2.5 px-3 tracking-wider text-center w-[10%]">BEP</th>
+                  <th className="py-2.5 px-3.5 tracking-wider w-[28%]">Ad Soyad</th>
+                  <th className="py-2.5 px-2.5 tracking-wider w-[14%]">Sınıf</th>
+                  <th className="py-2.5 px-2 tracking-wider text-center w-[12%]">Numara</th>
+                  <th className="py-2.5 px-3 tracking-wider w-[25%]">Sınav Dersi</th>
+                  <th className="py-2.5 px-2 tracking-wider text-center w-[9%]">BEP</th>
+                  <th className="py-2.5 px-2 tracking-wider text-center w-[12%]">İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400 italic">
+                    <td colSpan={6} className="py-12 text-center text-slate-400 italic">
                       {searchTerm || classFilter !== 'ALL' || bepOnlyFilter
                         ? 'Filtreye uygun öğrenci bulunamadı.'
                         : 'Henüz öğrenci eklenmedi. Sol panelden "CSV Yükle" veya "Manuel Ekleme" yapabilirsiniz.'}
@@ -735,17 +785,17 @@ export const StudentListSection: React.FC<Props> = ({
                         </td>
 
                         {/* Sınıf */}
-                        <td className="py-1.5 px-3 font-semibold tracking-wide truncate">
+                        <td className="py-1.5 px-2.5 font-semibold tracking-wide truncate">
                           {student.classLevel}
                         </td>
 
                         {/* Numara */}
-                        <td className="py-1.5 px-3 text-center font-mono">
+                        <td className="py-1.5 px-2 text-center font-mono">
                           {student.number}
                         </td>
 
                         {/* Sınav Dersi */}
-                        <td className="py-1.5 px-3.5 font-medium truncate text-slate-700">
+                        <td className="py-1.5 px-3 font-medium truncate text-slate-700">
                           <span
                             className={
                               isSelected
@@ -760,7 +810,7 @@ export const StudentListSection: React.FC<Props> = ({
                         </td>
 
                         {/* BEP */}
-                        <td className="py-1.5 px-3 text-center font-bold">
+                        <td className="py-1.5 px-2 text-center font-bold">
                           {student.isBEP ? (
                             <span
                               className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
@@ -772,6 +822,36 @@ export const StudentListSection: React.FC<Props> = ({
                               BEP
                             </span>
                           ) : null}
+                        </td>
+
+                        {/* İşlem (Düzenle & Sil) */}
+                        <td className="py-1 px-2 text-center" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditStudent(student)}
+                              className={`p-1 rounded transition cursor-pointer ${
+                                isSelected
+                                  ? 'text-white hover:bg-white/20'
+                                  : 'text-blue-600 hover:bg-blue-100 hover:text-blue-800'
+                              }`}
+                              title="Öğrenciyi Düzenle"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStudent(student.id)}
+                              className={`p-1 rounded transition cursor-pointer ${
+                                isSelected
+                                  ? 'text-white hover:bg-white/20'
+                                  : 'text-rose-500 hover:bg-rose-100 hover:text-rose-700'
+                              }`}
+                              title="Öğrenciyi Sil"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1021,6 +1101,129 @@ export const StudentListSection: React.FC<Props> = ({
           showToast(`${importedStudents.length} öğrenci Google E-Tablodan başarıyla yüklendi!`);
         }}
       />
+
+      {/* ÖĞRENCİ BİLGİLERİNİ DÜZENLE MODALI */}
+      {editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+                  <Edit2 className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-wide">
+                    Öğrenci Bilgilerini Düzenle
+                  </h3>
+                  <p className="text-[11px] text-blue-100 font-medium">
+                    {editingStudent.name} {editingStudent.surname} (#{editingStudent.number})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingStudent(null)}
+                className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStudent} className="p-5 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Adı:</label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    required
+                    placeholder="Örn: AHMET"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 uppercase focus:border-blue-500 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Soyadı:</label>
+                  <input
+                    type="text"
+                    value={editSurname}
+                    onChange={e => setEditSurname(e.target.value)}
+                    required
+                    placeholder="Örn: YILMAZ"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 uppercase focus:border-blue-500 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Sınıf / Şube:</label>
+                  <input
+                    type="text"
+                    list="edit-classes-datalist"
+                    value={editClassLevel}
+                    onChange={e => setEditClassLevel(e.target.value)}
+                    required
+                    placeholder="Örn: AMP 9-A"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 uppercase focus:border-blue-500 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                  />
+                  <datalist id="edit-classes-datalist">
+                    {availableClasses.map(cls => (
+                      <option key={cls} value={cls} />
+                    ))}
+                    {uniqueClasses.map(cls => (
+                      <option key={cls} value={cls} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Okul Numarası:</label>
+                  <input
+                    type="text"
+                    value={editNumber}
+                    onChange={e => setEditNumber(e.target.value)}
+                    required
+                    placeholder="Örn: 104"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-1 border-t border-slate-100">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={editIsBEP}
+                    onChange={e => setEditIsBEP(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                  />
+                  <span>BEP (Kaynaştırma) Öğrencisi</span>
+                </label>
+                <p className="text-[10.5px] text-slate-500 mt-0.5 ml-6">
+                  İşaretlendiğinde kelebek planında en ön sıralara öncelikli yerleştirilir.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Kaydet</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

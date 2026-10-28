@@ -14,7 +14,7 @@ import {
   Filter,
   ExternalLink,
 } from 'lucide-react';
-import { SeatingPlanResult } from '../../types';
+import { Exam, Subject, SeatingPlanResult } from '../../types';
 import { SalonSeatingPrint } from '../print/SalonSeatingPrint';
 import { SupervisorListPrint } from '../print/SupervisorListPrint';
 import { BEPStudentPrint } from '../print/BEPStudentPrint';
@@ -24,10 +24,18 @@ import { exportToPdf, printElementDirectly } from '../../utils/pdfExport';
 interface Props {
   initialMode: 'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES' | 'ALL';
   plan: SeatingPlanResult;
+  exam?: Exam;
+  subjects?: Subject[];
   onClose: () => void;
 }
 
-export const PrintPreviewModal: React.FC<Props> = ({ initialMode, plan, onClose }) => {
+export const PrintPreviewModal: React.FC<Props> = ({
+  initialMode,
+  plan,
+  exam,
+  subjects,
+  onClose,
+}) => {
   const [activeTab, setActiveTab] = useState<'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES' | 'ALL'>(
     initialMode
   );
@@ -479,7 +487,7 @@ export const PrintPreviewModal: React.FC<Props> = ({ initialMode, plan, onClose 
           )}
 
           {activeTab === 'SUPERVISOR' && (
-            <SupervisorListPrint plan={plan} forPrint={false} />
+            <SupervisorListPrint plan={plan} exam={exam} subjects={subjects} forPrint={false} />
           )}
 
           {activeTab === 'BEP' && (
@@ -489,6 +497,7 @@ export const PrintPreviewModal: React.FC<Props> = ({ initialMode, plan, onClose 
           {activeTab === 'CLASSES' && (
             <ClassDoorListsPrint
               plan={plan}
+              exam={exam}
               selectedClassFilter={selectedClassFilter}
               forPrint={false}
             />
@@ -497,9 +506,9 @@ export const PrintPreviewModal: React.FC<Props> = ({ initialMode, plan, onClose 
           {activeTab === 'ALL' && (
             <div className="space-y-6">
               <SalonSeatingPrint plan={plan} forPrint={false} />
-              <SupervisorListPrint plan={plan} forPrint={false} />
+              <SupervisorListPrint plan={plan} exam={exam} subjects={subjects} forPrint={false} />
               <BEPStudentPrint plan={plan} forPrint={false} />
-              <ClassDoorListsPrint plan={plan} forPrint={false} />
+              <ClassDoorListsPrint plan={plan} exam={exam} forPrint={false} />
             </div>
           )}
         </div>

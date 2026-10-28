@@ -43,6 +43,7 @@ export const MultipleTeachersSupervisorModal: React.FC<Props> = ({
 
   const handleConfirm = () => {
     onConfirm(selections);
+    onClose();
   };
 
   return (
