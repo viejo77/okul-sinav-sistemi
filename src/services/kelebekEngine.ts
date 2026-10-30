@@ -15,8 +15,8 @@ import {
 export const getGradeLevel = (classLevel: string): string => {
   if (!classLevel) return '';
   const trimmed = classLevel.trim();
-  // Check for 9, 10, 11, 12 bounded by non-digits or start/end
-  const gradeMatch = trimmed.match(/(?:^|[^0-9])(9|10|11|12)(?:[^0-9]|$)/i);
+  // Check for 10, 11, 12, 9 bounded by non-digits or start/end (prioritize two-digit 10, 11, 12 before 9)
+  const gradeMatch = trimmed.match(/(?:^|[^0-9])(10|11|12|9)(?:[^0-9]|$)/i);
   if (gradeMatch) {
     return gradeMatch[1];
   }
@@ -24,6 +24,11 @@ export const getGradeLevel = (classLevel: string): string => {
   const secMatch = trimmed.match(/(?:^|[^0-9])([5-8])(?:[^0-9]|$)/i);
   if (secMatch) {
     return secMatch[1];
+  }
+  // Primary school fallback (1-4)
+  const primMatch = trimmed.match(/(?:^|[^0-9])([1-4])(?:[^0-9]|$)/i);
+  if (primMatch) {
+    return primMatch[1];
   }
   const digits = trimmed.match(/\d+/);
   return digits ? digits[0] : trimmed.toUpperCase();
@@ -510,12 +515,15 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
   const allClassKeys = Array.from(
     new Set([...Object.keys(bepStudentsByClass), ...Object.keys(regularStudentsByClass)])
   ).sort((a, b) => {
-    const gA = getGradeLevel(a);
-    const gB = getGradeLevel(b);
-    return gA.localeCompare(gB);
+    const gA = Number(getGradeLevel(a)) || 0;
+    const gB = Number(getGradeLevel(b)) || 0;
+    if (gA !== gB) return gA - gB;
+    return a.localeCompare(b, 'tr-TR');
   });
 
-  const uniqueGrades = Array.from(new Set(allClassKeys.map(k => getGradeLevel(k)))).sort();
+  const uniqueGrades = Array.from(new Set(allClassKeys.map(k => getGradeLevel(k)))).sort(
+    (a, b) => (Number(a) || 0) - (Number(b) || 0) || a.localeCompare(b, 'tr-TR')
+  );
 
   // Create grade buckets for interleaved round-robin selection
   const gradeBuckets: Record<string, string[]> = {};
@@ -655,27 +663,47 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
       }
 
       // --- 2D SPATIAL NEIGHBOR CHECKS ---
-      // 1. Aynı Sıradaki Yan Yana Partner Kontrolü
-      if (ctx.seatsPerRow === 2) {
-        const partnerSeat = ctx.matrix[c][r][1 - s];
-        if (partnerSeat?.student) {
-          const partnerStudent = partnerSeat.student;
-          const partnerGrade = getGradeLevel(partnerStudent.classLevel);
-          if (partnerStudent.classLevel === classKey) {
-            // KESİN KURAL: Aynı sırada asla aynı sınıftan öğrenci yan yana oturamaz!
-            score -= 10000;
-          } else if (partnerGrade === candidateGrade) {
-            // KESİN KURAL: Önünde hangi ek olursa olsun (örn: ATP 9 ile AMP 9) aynı kademe asla yan yana oturamaz!
-            if (uniqueGrades.length > 1) {
-              score -= 10000;
-            } else {
-              score -= 2500;
-            }
-          } else {
-            // Farklı kademe: İdeal kelebek eşleşmesi
-            score += 450;
+      // 1. Aynı Sıradaki Yan Yana Partner Kontrolü (İkili / Çoklu Sıra)
+      // KESİN KURAL: Önünde hangi ek olursa olsun (ATP 9-A, AMP 9-B vb.),
+      // aynı kademedeki (9, 10, 11, 12) öğrenciler ASLA yan yana oturamaz!
+      let hasDeskPartnerConflict = false;
+      let hasDifferentGradePartner = false;
+
+      for (let os = 0; os < ctx.seatsPerRow; os++) {
+        if (os === s) continue;
+        const otherSeat = ctx.matrix[c][r][os];
+        if (otherSeat?.student) {
+          const otherStudent = otherSeat.student;
+          const otherGrade = getGradeLevel(otherStudent.classLevel);
+
+          // Kural 1: Aynı şube (örn: 9-A ile 9-A, ATP 9-A ile ATP 9-A) ASLA yan yana oturamaz!
+          if (otherStudent.classLevel.trim().toUpperCase() === classKey.trim().toUpperCase()) {
+            hasDeskPartnerConflict = true;
+            break;
+          }
+
+          // Kural 2: Önünde hangi ek olursa olsun (örn: ATP 9-A ile AMP 9-B veya 9-A ile 9-B)
+          // Aynı kademedeki öğrenciler ASLA yan yana oturamaz!
+          if (candidateGrade && otherGrade && candidateGrade === otherGrade) {
+            hasDeskPartnerConflict = true;
+            break;
+          }
+
+          if (candidateGrade && otherGrade && candidateGrade !== otherGrade) {
+            hasDifferentGradePartner = true;
           }
         }
+      }
+
+      if (hasDeskPartnerConflict) {
+        // Kesin kural ihlali: Yan yana aynı kademe veya şube oturamaz!
+        // Bu aday sınıf bu koltuk için kesin olarak elenir.
+        continue;
+      }
+
+      if (hasDifferentGradePartner) {
+        // Farklı kademe: İdeal kelebek eşleşmesi bonusu
+        score += 450;
       }
 
       // 2. Ön Sıra Komşusu (Aynı Sütun)

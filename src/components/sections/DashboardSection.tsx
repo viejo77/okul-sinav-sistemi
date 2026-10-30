@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Classroom, Exam, Student, Subject, Teacher, SeatingPlanResult } from '../../types';
 import { getClassColor } from '../../utils/classColors';
+import { getGradeLevel } from '../../services/kelebekEngine';
 
 interface Props {
   exams: Exam[];
@@ -89,7 +90,8 @@ export const DashboardSection: React.FC<Props> = ({
   const gradeDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
     participatingStudents.forEach(s => {
-      const grade = s.classLevel.split('-')[0] || s.classLevel;
+      const g = getGradeLevel(s.classLevel);
+      const grade = g ? `${g}. Sınıf` : s.classLevel;
       counts[grade] = (counts[grade] || 0) + 1;
     });
     return counts;

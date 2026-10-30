@@ -37,6 +37,7 @@ import {
 } from 'recharts';
 import { SeatingPlanResult, Teacher, Exam } from '../../types';
 import { getClassColor } from '../../utils/classColors';
+import { getGradeLevel } from '../../services/kelebekEngine';
 
 interface Props {
   plan: SeatingPlanResult | undefined;
@@ -155,13 +156,14 @@ export const ExamAnalysisSection: React.FC<Props> = ({
             bepStudentCount++;
           }
 
-          if (cls.startsWith('9')) {
+          const g = getGradeLevel(cls);
+          if (g === '9') {
             gradeCountMap['9. Sınıf']++;
-          } else if (cls.startsWith('10')) {
+          } else if (g === '10') {
             gradeCountMap['10. Sınıf']++;
-          } else if (cls.startsWith('11')) {
+          } else if (g === '11') {
             gradeCountMap['11. Sınıf']++;
-          } else if (cls.startsWith('12')) {
+          } else if (g === '12') {
             gradeCountMap['12. Sınıf']++;
           } else {
             gradeCountMap['Diğer']++;

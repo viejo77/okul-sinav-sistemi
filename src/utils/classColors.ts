@@ -1,3 +1,5 @@
+import { getGradeLevel } from '../services/kelebekEngine';
+
 export interface ClassColorDef {
   bg: string;
   border: string;
@@ -15,8 +17,8 @@ export interface ClassColorDef {
  * Generates distinct, accessible and visually appealing color classes for each school class/grade
  */
 export const getClassColor = (classLevel: string): ClassColorDef => {
-  const upper = classLevel.toUpperCase().trim();
-  if (upper.startsWith('9')) {
+  const grade = getGradeLevel(classLevel);
+  if (grade === '9') {
     return {
       bg: 'bg-blue-50',
       border: 'border-blue-300',
@@ -30,7 +32,7 @@ export const getClassColor = (classLevel: string): ClassColorDef => {
       badgeHex: '#2563eb',
     };
   }
-  if (upper.startsWith('10')) {
+  if (grade === '10') {
     return {
       bg: 'bg-emerald-50',
       border: 'border-emerald-300',
@@ -44,7 +46,7 @@ export const getClassColor = (classLevel: string): ClassColorDef => {
       badgeHex: '#059669',
     };
   }
-  if (upper.startsWith('11')) {
+  if (grade === '11') {
     return {
       bg: 'bg-amber-50',
       border: 'border-amber-300',
@@ -58,7 +60,7 @@ export const getClassColor = (classLevel: string): ClassColorDef => {
       badgeHex: '#d97706',
     };
   }
-  if (upper.startsWith('12')) {
+  if (grade === '12') {
     return {
       bg: 'bg-purple-50',
       border: 'border-purple-300',
@@ -70,6 +72,20 @@ export const getClassColor = (classLevel: string): ClassColorDef => {
       bgHex: '#faf5ff',
       borderHex: '#d8b4fe',
       badgeHex: '#9333ea',
+    };
+  }
+  if (['5', '6', '7', '8'].includes(grade)) {
+    return {
+      bg: 'bg-cyan-50',
+      border: 'border-cyan-300',
+      text: 'text-cyan-800',
+      badge: 'bg-cyan-600 text-white',
+      ring: 'focus:ring-cyan-400',
+      accent: 'border-l-cyan-500',
+      lightBadge: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+      bgHex: '#ecfeff',
+      borderHex: '#67e8f9',
+      badgeHex: '#0891b2',
     };
   }
   // Default / other classes
