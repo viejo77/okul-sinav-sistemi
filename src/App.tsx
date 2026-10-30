@@ -307,6 +307,96 @@ export default function App() {
     );
   }, [subjects, activeExam]);
 
+  // Deleted / excluded school classes state
+  const [deletedClasses, setDeletedClasses] = React.useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('school_deleted_classes');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.map((c: string) => String(c).trim().toUpperCase()).filter(Boolean);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  const handleDeleteClass = (className: string, alsoDeleteStudents = false) => {
+    const norm = className.trim().toUpperCase();
+    if (!norm) return;
+    const updatedDeleted = Array.from(new Set([...deletedClasses, norm]));
+    setDeletedClasses(updatedDeleted);
+    try {
+      localStorage.setItem('school_deleted_classes', JSON.stringify(updatedDeleted));
+    } catch (e) {
+      console.warn('Failed to save deleted classes:', e);
+    }
+
+    // 1. Remove this class from all exams' assignedClasses
+    setExams(prev =>
+      prev.map(ex => ({
+        ...ex,
+        assignedClasses: (ex.assignedClasses || []).filter(
+          ac => ac.classLevel.trim().toUpperCase() !== norm
+        ),
+      }))
+    );
+
+    // 2. Remove from custom saved classes if present
+    try {
+      const customRaw = localStorage.getItem('school_custom_classes');
+      if (customRaw) {
+        const parsed = JSON.parse(customRaw);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(
+            (c: string) => typeof c === 'string' && c.trim().toUpperCase() !== norm
+          );
+          localStorage.setItem('school_custom_classes', JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to clean custom classes:', e);
+    }
+
+    // 3. If requested, also remove students of that class
+    if (alsoDeleteStudents) {
+      setStudents(prev =>
+        prev.filter(s => s.classLevel.trim().toUpperCase() !== norm)
+      );
+    }
+  };
+
+  const handleRestoreClass = (className: string) => {
+    const norm = className.trim().toUpperCase();
+    const updated = deletedClasses.filter(c => c !== norm);
+    setDeletedClasses(updated);
+    try {
+      localStorage.setItem('school_deleted_classes', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save deleted classes:', e);
+    }
+  };
+
+  const handleAddClass = (className: string) => {
+    const norm = className.trim().toUpperCase();
+    if (!norm) return;
+    // Un-delete if previously deleted
+    if (deletedClasses.includes(norm)) {
+      handleRestoreClass(norm);
+    }
+    // Add to school_custom_classes
+    try {
+      const customRaw = localStorage.getItem('school_custom_classes');
+      const parsed = customRaw ? JSON.parse(customRaw) : [];
+      const updated = Array.from(new Set([...(Array.isArray(parsed) ? parsed : []), norm]));
+      localStorage.setItem('school_custom_classes', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
   // Available unique class list collected across students, exams, classrooms, teachers (gözetmen programı), and custom school classes
   const availableClasses = React.useMemo(() => {
     const classSet = new Set<string>();
@@ -361,17 +451,21 @@ export default function App() {
       console.warn('Custom classes load error:', err);
     }
 
-    if (classSet.size === 0) {
-      return [
+    const deletedSet = new Set(deletedClasses.map(c => c.trim().toUpperCase()));
+    const filtered = Array.from(classSet).filter(cls => !deletedSet.has(cls.trim().toUpperCase()));
+
+    if (filtered.length === 0) {
+      const defaultPool = [
         '9-A', '9-B', '9-C', '9-D',
         '10-A', '10-B', '10-C', '10-D',
         '11-A', '11-B', '11-C', '11-D',
         '12-A', '12-B', '12-C', '12-D',
       ];
+      return defaultPool.filter(cls => !deletedSet.has(cls.trim().toUpperCase()));
     }
 
-    return Array.from(classSet).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }));
-  }, [students, exams, classrooms, teachers]);
+    return filtered.sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }));
+  }, [students, exams, classrooms, teachers, deletedClasses]);
 
   // Auth Handlers
   const handleGoogleSignIn = async () => {
@@ -538,6 +632,12 @@ export default function App() {
               subjects={subjects}
               setSubjects={setSubjects}
               availableClasses={availableClasses}
+              students={students}
+              setStudents={setStudents}
+              deletedClasses={deletedClasses}
+              onDeleteClass={handleDeleteClass}
+              onRestoreClass={handleRestoreClass}
+              onAddClass={handleAddClass}
               savedPlans={savedPlans}
               onGoToExamSchedule={() => setActiveTab(10)}
               onGoToPlan={() => setActiveTab(5)}

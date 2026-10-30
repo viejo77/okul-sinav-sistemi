@@ -219,21 +219,46 @@ export const getSectionsForGrade = (
     // ignore
   }
 
+  let deletedLocal: string[] = [];
+  try {
+    const rawDel = localStorage.getItem('school_deleted_classes');
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed)) {
+        deletedLocal = parsed.map((c: string) => String(c).trim().toUpperCase()).filter(Boolean);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const isClassDeleted = (cName: string) => {
+    if (!cName) return false;
+    const up = cName.trim().toUpperCase();
+    return deletedLocal.some(del => isClassMatching(del, up) || del === up);
+  };
+
   const poolSet = new Set<string>();
 
   // 1. Primary Source: Gözetmen Programı (Öğretmen Ders Programı)
-  getSupervisorProgramClasses(teachers).forEach(cls => poolSet.add(cls));
+  getSupervisorProgramClasses(teachers).forEach(cls => {
+    if (!isClassDeleted(cls)) poolSet.add(cls);
+  });
 
   // 2. Primary Source: Sınav Programı (Sınava Girecek Sınıf Ata)
-  getExamProgramClasses(exams).forEach(cls => poolSet.add(cls));
+  getExamProgramClasses(exams).forEach(cls => {
+    if (!isClassDeleted(cls)) poolSet.add(cls);
+  });
 
   // 3. From classrooms (Sınav Salonları)
   if (Array.isArray(classrooms)) {
     classrooms.forEach(c => {
       if (c && c.name) {
         const clean = formatSectionDisplayLabel(c.name);
-        if (extractGradeFromClass(clean)) poolSet.add(clean);
-        extractClassesFromClassroomName(c.name).forEach(cls => poolSet.add(cls));
+        if (extractGradeFromClass(clean) && !isClassDeleted(clean)) poolSet.add(clean);
+        extractClassesFromClassroomName(c.name).forEach(cls => {
+          if (!isClassDeleted(cls)) poolSet.add(cls);
+        });
       }
     });
   }
@@ -242,7 +267,8 @@ export const getSectionsForGrade = (
   if (Array.isArray(students)) {
     students.forEach(s => {
       if (s && s.classLevel) {
-        poolSet.add(s.classLevel.trim());
+        const tr = s.classLevel.trim();
+        if (!isClassDeleted(tr)) poolSet.add(tr);
       }
     });
   }
@@ -251,7 +277,8 @@ export const getSectionsForGrade = (
   if (Array.isArray(availableClasses)) {
     availableClasses.forEach(cls => {
       if (cls && cls.trim()) {
-        poolSet.add(cls.trim());
+        const tr = cls.trim();
+        if (!isClassDeleted(tr)) poolSet.add(tr);
       }
     });
   }
@@ -259,7 +286,8 @@ export const getSectionsForGrade = (
   // 6. From customClasses & savedLocal
   [...(customClasses || []), ...savedLocal].forEach(cls => {
     if (cls && typeof cls === 'string' && cls.trim()) {
-      poolSet.add(cls.trim());
+      const tr = cls.trim();
+      if (!isClassDeleted(tr)) poolSet.add(tr);
     }
   });
 
@@ -282,7 +310,8 @@ export const getSectionsForGrade = (
     );
   }
 
-  return [`AMP ${grade}-A`, `AMP ${grade}-B`, `ATP ${grade}-A`, `ATP ${grade}-B`, `${grade}-A`];
+  const defaultFallbacks = [`AMP ${grade}-A`, `AMP ${grade}-B`, `ATP ${grade}-A`, `ATP ${grade}-B`, `${grade}-A`];
+  return defaultFallbacks.filter(cls => !isClassDeleted(cls));
 };
 
 // Parse a subject string like "Biyoloji (11-A, 11-B)" into GradeSubjectConfig[]

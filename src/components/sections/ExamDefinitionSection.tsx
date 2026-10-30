@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   BookOpen,
@@ -13,9 +13,17 @@ import {
   Split,
   Users,
   Sparkles,
+  Settings,
+  X,
+  Search,
+  AlertTriangle,
+  RotateCcw,
+  Layers,
 } from 'lucide-react';
-import { Exam, Subject, ExamClassAssignment, SeatingPlanResult } from '../../types';
+import { Exam, Subject, ExamClassAssignment, SeatingPlanResult, Student } from '../../types';
 import { formatPeriodWithTimes, extractPeriodNumber } from '../../services/periodTimes';
+import { getGradeLevel } from '../../services/kelebekEngine';
+import { getClassColor } from '../../utils/classColors';
 
 interface Props {
   exams: Exam[];
@@ -25,6 +33,12 @@ interface Props {
   subjects: Subject[];
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
   availableClasses: string[];
+  students?: Student[];
+  setStudents?: React.Dispatch<React.SetStateAction<Student[]>>;
+  deletedClasses?: string[];
+  onDeleteClass?: (className: string, alsoDeleteStudents?: boolean) => void;
+  onRestoreClass?: (className: string) => void;
+  onAddClass?: (className: string) => void;
   savedPlans?: Record<string, SeatingPlanResult>;
   onGoToExamSchedule?: () => void;
   onGoToPlan?: () => void;
@@ -38,6 +52,12 @@ export const ExamDefinitionSection: React.FC<Props> = ({
   subjects,
   setSubjects,
   availableClasses,
+  students,
+  setStudents,
+  deletedClasses,
+  onDeleteClass,
+  onRestoreClass,
+  onAddClass,
   savedPlans,
   onGoToExamSchedule,
   onGoToPlan,
@@ -85,26 +105,110 @@ export const ExamDefinitionSection: React.FC<Props> = ({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
 
   // Card 3: Sınava Girecek Sınıf Ata State
-  const defaultClassOptions =
-    availableClasses && availableClasses.length > 0
-      ? availableClasses
-      : [
-          'AMP 9-A',
-          'AMP 9-B',
-          'AMP 9-C',
-          'ATP 9-A',
-          'AMP 10-A',
-          'AMP 10-B',
-          'ATP 10-A',
-          'ATP 10-B',
-          'AMP 11-A',
-          'AMP 11-B',
-          'AMP 12-A',
-        ];
+  const defaultClassOptions = useMemo(() => {
+    let list =
+      availableClasses && availableClasses.length > 0
+        ? availableClasses
+        : [
+            'AMP 9-A',
+            'AMP 9-B',
+            'ATP 9-A',
+            'AMP 10-A',
+            'AMP 10-B',
+            'ATP 10-A',
+            'AMP 11-A',
+            'AMP 11-B',
+            'AMP 12-A',
+          ];
+    if (deletedClasses && deletedClasses.length > 0) {
+      const delSet = new Set(deletedClasses.map(c => c.trim().toUpperCase()));
+      list = list.filter(c => !delSet.has(c.trim().toUpperCase()));
+    }
+    return list;
+  }, [availableClasses, deletedClasses]);
 
   const [selectedClassToAssign, setSelectedClassToAssign] = useState<string>(
     defaultClassOptions[0] || ''
   );
+
+  useEffect(() => {
+    if (!defaultClassOptions.includes(selectedClassToAssign)) {
+      setSelectedClassToAssign(defaultClassOptions[0] || '');
+    }
+  }, [defaultClassOptions, selectedClassToAssign]);
+
+  // Modal states for deleting and managing school classes
+  const [classToDelete, setClassToDelete] = useState<string | null>(null);
+  const [alsoDeleteStudentsOfClass, setAlsoDeleteStudentsOfClass] = useState(false);
+  const [isManageClassesModalOpen, setIsManageClassesModalOpen] = useState(false);
+  const [newClassNameInput, setNewClassNameInput] = useState('');
+  const [manageFilterGrade, setManageFilterGrade] = useState<'ALL' | '9' | '10' | '11' | '12'>('ALL');
+  const [manageSearchQuery, setManageSearchQuery] = useState('');
+  const [showDeletedList, setShowDeletedList] = useState(false);
+
+  // Helper to count registered students in a class
+  const getStudentCountForClass = (className: string): number => {
+    if (!students || students.length === 0) return 0;
+    const norm = className.trim().toUpperCase();
+    return students.filter(s => s.classLevel && s.classLevel.trim().toUpperCase() === norm).length;
+  };
+
+  // Helper to count how many exams assign this class
+  const getExamCountForClass = (className: string): number => {
+    const norm = className.trim().toUpperCase();
+    return exams.filter(e =>
+      (e.assignedClasses || []).some(ac => ac.classLevel.trim().toUpperCase() === norm)
+    ).length;
+  };
+
+  // Find unused classes (classes with 0 registered students)
+  const unusedClasses = useMemo(() => {
+    return defaultClassOptions.filter(cls => getStudentCountForClass(cls) === 0);
+  }, [defaultClassOptions, students]);
+
+  // Execute single class deletion
+  const handleConfirmDeleteClass = () => {
+    if (!classToDelete) return;
+    const target = classToDelete;
+    if (onDeleteClass) {
+      onDeleteClass(target, alsoDeleteStudentsOfClass);
+    }
+    setClassToDelete(null);
+    setAlsoDeleteStudentsOfClass(false);
+    showToast(`"${target}" sınıfı okul listesinden ve sınavlardan silindi.`);
+  };
+
+  // Execute batch clean of unused classes (0 students)
+  const handleCleanAllUnusedClasses = () => {
+    if (unusedClasses.length === 0) {
+      showToast('Temizlenecek öğrencisiz şube bulunmuyor.');
+      return;
+    }
+    const count = unusedClasses.length;
+    unusedClasses.forEach(cls => {
+      if (onDeleteClass) {
+        onDeleteClass(cls, false);
+      }
+    });
+    showToast(`${count} adet kullanılmayan/öğrencisiz şube temizlendi.`);
+  };
+
+  // Add new class from manage modal
+  const handleAddNewClass = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const raw = newClassNameInput.trim();
+    if (!raw) return;
+
+    const parts = raw.split(/[,;\s]+/).map(p => p.trim()).filter(Boolean);
+    parts.forEach(p => {
+      if (onAddClass) {
+        onAddClass(p);
+      }
+    });
+    setNewClassNameInput('');
+    showToast(`"${parts.join(', ')}" şubesi eklendi.`);
+  };
+
   const [selectedSubjectToAssign, setSelectedSubjectToAssign] = useState<string>(
     subjects[0]?.id || ''
   );
@@ -488,9 +592,7 @@ export const ExamDefinitionSection: React.FC<Props> = ({
           ? {
               ...ex,
               assignedClasses: ex.assignedClasses.filter(ac => {
-                const grp =
-                  ac.classLevel.match(/(?:^|[^0-9])(9|10|11|12)(?:[^0-9]|$)/i)?.[1] ||
-                  ac.classLevel.match(/\d+/)?.[0];
+                const grp = getGradeLevel(ac.classLevel);
                 return grp !== level;
               }),
             }
@@ -510,11 +612,15 @@ export const ExamDefinitionSection: React.FC<Props> = ({
       return;
     }
 
-    const matchingClasses = defaultClassOptions.filter(cls =>
-      cls.includes(` ${level}-`) || cls.startsWith(level)
-    );
+    const matchingClasses = defaultClassOptions.filter(cls => {
+      const g = getGradeLevel(cls);
+      return g === level;
+    });
 
-    if (matchingClasses.length === 0) return;
+    if (matchingClasses.length === 0) {
+      showToast(`${level}. sınıfa ait şube bulunamadı.`);
+      return;
+    }
 
     setExams(prev =>
       prev.map(ex => {
@@ -930,18 +1036,45 @@ export const ExamDefinitionSection: React.FC<Props> = ({
             <form onSubmit={handleAssignClassToExam} className="space-y-1.5 text-xs">
               <div className="grid grid-cols-12 gap-1.5 items-end">
                 <div className="col-span-5">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Sınıf:</label>
-                  <select
-                    value={selectedClassToAssign}
-                    onChange={e => setSelectedClassToAssign(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-cyan-400 focus:outline-none bg-slate-50/50 cursor-pointer"
-                  >
-                    {defaultClassOptions.map(cls => (
-                      <option key={cls} value={cls}>
-                        {cls}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[11px] font-bold text-slate-700">Sınıf:</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsManageClassesModalOpen(true)}
+                      className="text-[10px] text-cyan-700 hover:text-cyan-900 font-bold flex items-center gap-0.5 transition cursor-pointer hover:underline"
+                      title="Okul sınıf listesini yönet / Kullanılmayan sınıfları sil"
+                    >
+                      <Settings className="w-2.5 h-2.5" />
+                      <span>Şubeleri Yönet</span>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={selectedClassToAssign}
+                      onChange={e => setSelectedClassToAssign(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-cyan-400 focus:outline-none bg-slate-50/50 cursor-pointer"
+                    >
+                      {defaultClassOptions.map(cls => (
+                        <option key={cls} value={cls}>
+                          {cls}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedClassToAssign) {
+                          setClassToDelete(selectedClassToAssign);
+                        }
+                      }}
+                      disabled={!selectedClassToAssign}
+                      className="p-1 border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition cursor-pointer flex-shrink-0"
+                      title={`"${selectedClassToAssign}" sınıfını okul sınıf listesinden ve tüm sınavlardan kalıcı olarak sil`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="col-span-5">
@@ -1172,6 +1305,306 @@ export const ExamDefinitionSection: React.FC<Props> = ({
                 <span>Evet, Sınavı Sil</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEKİL SINIF SİLME ONAY MODALI */}
+      {classToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-gradient-to-r from-rose-600 to-rose-700 px-5 py-3.5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-rose-100" />
+                <h3 className="font-bold text-sm tracking-wide">Sınıfı / Şubeyi Sil</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setClassToDelete(null);
+                  setAlsoDeleteStudentsOfClass(false);
+                }}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-rose-800/50 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="flex items-start gap-3 bg-rose-50 p-3.5 rounded-xl border border-rose-200 text-xs text-rose-900">
+                <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-sm text-rose-950">
+                    "{classToDelete}" sınıfını silmek istediğinize emin misiniz?
+                  </p>
+                  <p className="text-slate-600 leading-relaxed">
+                    Bu işlem sınıfı <strong>sınıf seçimi listesinden</strong>, tüm <strong>sınav programından</strong> ve <strong>pano takviminden</strong> kalıcı olarak kaldıracaktır. Okulda olmayan bu şube bir daha sınavlara dahil edilmeyecektir.
+                  </p>
+                </div>
+              </div>
+
+              {/* Sınıf Durumu Bilgisi */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                  <span className="text-slate-500 block text-[11px]">Kayıtlı Öğrenci</span>
+                  <strong className="text-slate-800 font-bold text-sm">
+                    {getStudentCountForClass(classToDelete)} Öğrenci
+                  </strong>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                  <span className="text-slate-500 block text-[11px]">Atandığı Sınav</span>
+                  <strong className="text-slate-800 font-bold text-sm">
+                    {getExamCountForClass(classToDelete)} Sınav
+                  </strong>
+                </div>
+              </div>
+
+              {/* Öğrenci Silme Opsiyonu */}
+              {getStudentCountForClass(classToDelete) > 0 && (
+                <label className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alsoDeleteStudentsOfClass}
+                    onChange={e => setAlsoDeleteStudentsOfClass(e.target.checked)}
+                    className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-400 cursor-pointer"
+                  />
+                  <span>
+                    Bu şubede kayıtlı <strong>{getStudentCountForClass(classToDelete)} öğrenciyi</strong> de öğrenci listesinden sil
+                  </span>
+                </label>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassToDelete(null);
+                    setAlsoDeleteStudentsOfClass(false);
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteClass}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Evet, Sınıfı Sil</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OKUL SINIF VE ŞUBE YÖNETİMİ MODALI */}
+      {isManageClassesModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-cyan-700 to-blue-700 px-5 py-3.5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-cyan-200" />
+                <div>
+                  <h3 className="font-bold text-sm tracking-wide">Okul Sınıf ve Şube Yönetimi</h3>
+                  <p className="text-[11px] text-cyan-100">
+                    Kullanmadığınız veya okulunuzda olmayan sınıfları silebilir ya da yeni şube ekleyebilirsiniz.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageClassesModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-cyan-800/50 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Top Action Bar */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+              {/* Quick Actions & Add Class */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* Add new class form */}
+                <form onSubmit={handleAddNewClass} className="flex items-center gap-1.5 flex-1 min-w-[220px]">
+                  <input
+                    type="text"
+                    value={newClassNameInput}
+                    onChange={e => setNewClassNameInput(e.target.value)}
+                    placeholder="Yeni Şube Ekle (Örn: 9-E, AMP 10-C)"
+                    className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 flex-1"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Ekle</span>
+                  </button>
+                </form>
+
+                {/* Clean Unused Classes Button */}
+                {unusedClasses.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCleanAllUnusedClasses}
+                    className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                    title="Öğrencisi olmayan tüm boş şubeleri okul listesinden temizle"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Öğrencisiz Şubeleri Temizle ({unusedClasses.length})</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Filters & Search */}
+              <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+                {/* Grade Tabs */}
+                <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg">
+                  {(['ALL', '9', '10', '11', '12'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setManageFilterGrade(tab)}
+                      className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] transition cursor-pointer ${
+                        manageFilterGrade === tab
+                          ? 'bg-white text-cyan-800 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab === 'ALL' ? 'Tümü' : `${tab}. Sınıf`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="w-3 h-3 text-slate-400 absolute left-2 top-2" />
+                  <input
+                    type="text"
+                    value={manageSearchQuery}
+                    onChange={e => setManageSearchQuery(e.target.value)}
+                    placeholder="Şube ara..."
+                    className="pl-6 pr-2 py-0.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 w-28"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Class Cards List */}
+            <div className="p-4 flex-1 overflow-y-auto max-h-96">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {defaultClassOptions
+                  .filter(cls => {
+                    if (manageFilterGrade !== 'ALL') {
+                      const g = getGradeLevel(cls);
+                      if (g !== manageFilterGrade) return false;
+                    }
+                    if (manageSearchQuery) {
+                      return cls.toLowerCase().includes(manageSearchQuery.toLowerCase());
+                    }
+                    return true;
+                  })
+                  .map(cls => {
+                    const stCount = getStudentCountForClass(cls);
+                    const exCount = getExamCountForClass(cls);
+                    const colorDef = getClassColor(cls);
+
+                    return (
+                      <div
+                        key={cls}
+                        className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-2.5 flex items-center justify-between shadow-2xs transition group"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2 py-0.5 rounded text-xs font-black ${colorDef.badge}`}>
+                              {cls}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                            <span className={stCount > 0 ? 'text-emerald-700 font-semibold' : 'text-slate-400 italic'}>
+                              {stCount} Öğrenci
+                            </span>
+                            <span>•</span>
+                            <span className={exCount > 0 ? 'text-blue-700 font-semibold' : 'text-slate-400 italic'}>
+                              {exCount} Sınav
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClassToDelete(cls);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title={`"${cls}" sınıfını sil`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {defaultClassOptions.length === 0 && (
+                <div className="text-center py-8 text-slate-400 text-xs italic">
+                  Tanımlı sınıf bulunmamaktadır. Yukarıdaki formu kullanarak yeni şube ekleyebilirsiniz.
+                </div>
+              )}
+            </div>
+
+            {/* Footer with restore deleted classes */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div>
+                {deletedClasses && deletedClasses.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletedList(!showDeletedList)}
+                    className="text-[11px] text-slate-600 hover:text-slate-900 font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3 text-slate-500" />
+                    <span>Silinen Şubeler ({deletedClasses.length})</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsManageClassesModalOpen(false)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+              >
+                Kapat
+              </button>
+            </div>
+
+            {/* Collapsible Deleted Classes list for restoring */}
+            {showDeletedList && deletedClasses && deletedClasses.length > 0 && (
+              <div className="p-3 bg-rose-50/50 border-t border-rose-100 max-h-36 overflow-y-auto space-y-2">
+                <span className="text-[11px] font-bold text-rose-900 block">
+                  Silinen Şubeler (Geri Yüklemek İçin Tıklayın):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {deletedClasses.map(delCls => (
+                    <button
+                      key={delCls}
+                      type="button"
+                      onClick={() => {
+                        if (onRestoreClass) onRestoreClass(delCls);
+                        showToast(`"${delCls}" şubesi geri yüklendi.`);
+                      }}
+                      className="px-2 py-1 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded text-xs font-bold text-slate-700 hover:text-emerald-800 flex items-center gap-1 transition cursor-pointer"
+                      title="Geri yükle"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>{delCls}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
