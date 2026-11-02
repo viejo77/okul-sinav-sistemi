@@ -1241,17 +1241,11 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
       }`}
       title={`Koltuk #${seatNumber} | ${student.classLevel} - No: ${student.number} - ${student.name} ${student.surname}${subjectName ? ` (${subjectName})` : ''}`}
     >
-      {/* Top row: Sıra Numarası (Left) & Sınıf (Right - e.g. AMP 9-A, ATP 10-B) */}
+      {/* Top row: Sıra Numarası (Left) & Sınav Dersi Kodu (Right) */}
       <div className="flex items-center justify-between gap-1 min-w-0">
-        <span className="h-4 px-1 rounded bg-slate-900 text-white font-mono font-black text-[8.5px] flex items-center justify-center shrink-0 shadow-2xs">
-          #{seatNumber}
-        </span>
-        <div className="flex items-center gap-0.5 min-w-0">
-          <span
-            className={`font-black px-1.5 py-0.2 rounded text-[8px] shadow-2xs truncate max-w-[58px] ${col.badge}`}
-            title={student.classLevel}
-          >
-            {student.classLevel}
+        <div className="flex items-center gap-0.5 shrink-0">
+          <span className="h-4 px-1 rounded bg-slate-900 text-white font-mono font-black text-[8.5px] flex items-center justify-center shrink-0 shadow-2xs">
+            #{seatNumber}
           </span>
           {student.isBEP && (
             <span className="bg-purple-700 text-white font-black text-[6.5px] px-0.5 py-0.2 rounded uppercase shrink-0">
@@ -1259,6 +1253,14 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
             </span>
           )}
         </div>
+        {subjectCode && (
+          <span
+            className="bg-indigo-600 text-white font-black px-1.5 py-0.2 rounded text-[7.5px] uppercase shrink-0 font-mono shadow-2xs"
+            title={`Sınav Dersi: ${subjectName || subjectCode}`}
+          >
+            {subjectCode}
+          </span>
+        )}
       </div>
 
       {/* Middle row: Student Full Name */}
@@ -1268,19 +1270,17 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom row: Öğrenci Numarası (Left - No 'No:' prefix as requested) & Sınav Dersi Kodu (Right) */}
+      {/* Bottom row: Sınıf (Left - e.g. AMP 9-A, ATP 10-B) & Okul No (Right) */}
       <div className="pt-0.5 border-t border-black/5 flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono leading-none m-0 gap-1 min-w-0">
-        <span className="text-slate-800 font-extrabold text-[9px] truncate" title={`Okul No: ${student.number}`}>
+        <span
+          className={`font-black px-1.5 py-0.2 rounded text-[8px] shadow-2xs shrink-0 tracking-tight ${col.badge}`}
+          title={student.classLevel}
+        >
+          {student.classLevel}
+        </span>
+        <span className="text-slate-800 font-mono font-extrabold text-[9px] shrink-0" title={`Okul No: ${student.number}`}>
           {student.number}
         </span>
-        {subjectCode && (
-          <span
-            className="bg-indigo-600 text-white font-black px-1 py-0.2 rounded text-[7.5px] uppercase shrink-0 font-mono shadow-2xs"
-            title={`Sınav Dersi: ${subjectName || subjectCode}`}
-          >
-            {subjectCode}
-          </span>
-        )}
       </div>
     </div>
   );
