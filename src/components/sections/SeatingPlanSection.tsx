@@ -1241,25 +1241,14 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
       }`}
       title={`Koltuk #${seatNumber} | ${student.classLevel} - No: ${student.number} - ${student.name} ${student.surname}${subjectName ? ` (${subjectName})` : ''}`}
     >
-      {/* Top row: Seat Number badge (Left) & Class Badge (Right - Clear & Visible) */}
+      {/* Top row: Sıra Numarası (Left) & Okul Numarası (Right - No collision with long class names!) */}
       <div className="flex items-center justify-between gap-1 min-w-0">
-        <span className="w-4 h-4 rounded bg-slate-900 text-white font-mono font-black text-[8.5px] flex items-center justify-center shrink-0 shadow-2xs">
+        <span className="h-4 px-1 rounded bg-slate-900 text-white font-mono font-black text-[8.5px] flex items-center justify-center shrink-0 shadow-2xs">
           #{seatNumber}
         </span>
-
-        <div className="flex items-center gap-0.5 min-w-0 justify-end">
-          <span
-            className={`font-black px-1.5 py-0.2 rounded text-[8.5px] shadow-2xs shrink-0 ${col.badge}`}
-            title={student.classLevel}
-          >
-            {student.classLevel}
-          </span>
-          {student.isBEP && (
-            <span className="bg-purple-700 text-white font-black text-[7.5px] px-1 py-0.2 rounded uppercase shrink-0">
-              BEP
-            </span>
-          )}
-        </div>
+        <span className="text-[8.5px] text-slate-700 font-mono font-bold truncate">
+          No: {student.number}
+        </span>
       </div>
 
       {/* Middle row: Student Full Name */}
@@ -1269,11 +1258,21 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom row: Student Number (Left) & Sınav Dersi Kodu (Right) */}
-      <div className="pt-0.5 border-t border-black/5 flex items-center justify-between text-[8.5px] font-mono leading-none m-0">
-        <span className="text-slate-600 font-bold truncate">
-          No: {student.number}
-        </span>
+      {/* Bottom row: Sınıf (Left - AMP 9-A, ATP 10-B) & Sınav Dersi Kodu (Right) */}
+      <div className="pt-0.5 border-t border-black/5 flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono leading-none m-0 gap-1 min-w-0">
+        <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
+          <span
+            className={`font-black px-1.5 py-0.2 rounded text-[8px] shadow-2xs shrink-0 tracking-tight ${col.badge}`}
+            title={student.classLevel}
+          >
+            {student.classLevel}
+          </span>
+          {student.isBEP && (
+            <span className="bg-purple-700 text-white font-black text-[6.5px] px-0.5 py-0.2 rounded uppercase shrink-0">
+              BEP
+            </span>
+          )}
+        </div>
         {subjectCode && (
           <span
             className="bg-indigo-600 text-white font-black px-1 py-0.2 rounded text-[7.5px] uppercase shrink-0 font-mono shadow-2xs"

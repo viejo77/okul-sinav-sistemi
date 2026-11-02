@@ -89,36 +89,36 @@ export const SalonSeatingPrint: React.FC<Props> = ({
         className="border-2 border-black rounded p-0.5 sm:p-1 flex-1 flex flex-col justify-between bg-white min-w-0 overflow-hidden"
         title={`Koltuk #${seat.seatNumber} | ${std.classLevel} - No: ${std.number} - ${std.name} ${std.surname} | Sınav Dersi: ${subjName}`}
       >
-        {/* Top row: Koltuk No (Left) & Sınıf (Right - High contrast, clearly visible) */}
+        {/* Top row: Sıra Numarası (Left) & Okul Numarası (Right - No collision with long class names!) */}
         <div className="flex items-center justify-between gap-1 pb-0.5 border-b border-black m-0 leading-tight w-full min-w-0">
-          <span className="bg-black text-white font-mono font-black text-[9px] sm:text-[9.5px] px-1 py-0.2 rounded shrink-0 leading-none">
+          <span className="bg-black text-white font-mono font-black text-[9px] sm:text-[9.5px] px-1.5 py-0.2 rounded shrink-0 leading-none">
             #{seat.seatNumber}
           </span>
-          <div className="flex items-center gap-0.5 min-w-0 justify-end">
-            <span
-              className="font-black text-[8.5px] sm:text-[9.5px] text-black border border-black bg-white px-1.5 py-0.2 rounded leading-none shrink-0"
-              title={std.classLevel}
-            >
-              {std.classLevel}
-            </span>
-            {std.isBEP && (
-              <span className="bg-black text-white font-black text-[7px] px-0.5 py-0.2 rounded uppercase shrink-0 leading-none">
-                B
-              </span>
-            )}
-          </div>
+          <span className="font-mono font-extrabold text-[8.5px] sm:text-[9px] text-black shrink-0 leading-none">
+            No: {std.number}
+          </span>
         </div>
 
         {/* Middle row: Student Name & Surname on separate lines (No vertical slicing) */}
         {renderStudentNameAndSurname(std)}
 
-        {/* Bottom row: Student Number (Left) & Sınav Dersi Kodu (Right) */}
-        <div className="pt-0.5 border-t border-slate-300 flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono leading-none m-0">
-          <span className="font-extrabold text-black truncate">
-            No: {std.number}
-          </span>
+        {/* Bottom row: Sınıf (Left - AMP 9-A, ATP 10-B) & Sınav Dersi Kodu (Right) */}
+        <div className="pt-0.5 border-t border-slate-300 flex items-center justify-between text-[8px] sm:text-[8.5px] leading-none m-0 gap-1 min-w-0">
+          <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
+            <span
+              className="font-black text-[8px] sm:text-[8.5px] text-black border border-black bg-white px-1.5 py-0.2 rounded leading-none shrink-0 tracking-tight"
+              title={std.classLevel}
+            >
+              {std.classLevel}
+            </span>
+            {std.isBEP && (
+              <span className="bg-black text-white font-black text-[6.5px] px-0.5 py-0.2 rounded uppercase shrink-0 leading-none">
+                B
+              </span>
+            )}
+          </div>
           <span
-            className="font-mono font-black text-[7.5px] sm:text-[8px] bg-black text-white px-1 py-0.2 rounded leading-none shrink-0"
+            className="font-mono font-black text-[7.5px] sm:text-[8px] bg-black text-white px-1.5 py-0.2 rounded leading-none shrink-0"
             title={`Sınav Dersi: ${subjName}`}
           >
             {subjCode}
