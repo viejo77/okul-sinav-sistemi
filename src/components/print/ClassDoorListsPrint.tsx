@@ -1,5 +1,6 @@
 import React from 'react';
 import { SeatingPlanResult, Student, Exam } from '../../types';
+import { getSubjectShortCode } from '../../utils/subjectCodes';
 
 interface Props {
   plan: SeatingPlanResult;
@@ -198,7 +199,7 @@ export const ClassDoorListsPrint: React.FC<Props> = ({
                       <div className="pt-1 flex flex-wrap justify-between items-center text-[9px] text-slate-800 font-semibold gap-x-2">
                         <span>📅 <strong>Tarih:</strong> {plan.examDate}</span>
                         <span>⏰ <strong>Saat:</strong> {plan.examPeriod}. Ders</span>
-                        <span>📖 <strong>Ders:</strong> <strong className="text-black uppercase">{classSubject}</strong></span>
+                        <span>📖 <strong>Ders:</strong> <strong className="text-black uppercase">[{getSubjectShortCode(classSubject)}] {classSubject}</strong></span>
                       </div>
                     </div>
 

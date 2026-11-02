@@ -480,6 +480,7 @@ export const PrintPreviewModal: React.FC<Props> = ({
           {activeTab === 'SALON' && (
             <SalonSeatingPrint
               plan={plan}
+              exam={exam}
               selectedRoomId={selectedRoomFilter}
               forPrint={false}
               roomsPerPage={roomsPerPage}
@@ -505,7 +506,7 @@ export const PrintPreviewModal: React.FC<Props> = ({
 
           {activeTab === 'ALL' && (
             <div className="space-y-6">
-              <SalonSeatingPrint plan={plan} forPrint={false} />
+              <SalonSeatingPrint plan={plan} exam={exam} forPrint={false} />
               <SupervisorListPrint plan={plan} exam={exam} subjects={subjects} forPrint={false} />
               <BEPStudentPrint plan={plan} forPrint={false} />
               <ClassDoorListsPrint plan={plan} exam={exam} forPrint={false} />

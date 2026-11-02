@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { SeatingPlanResult, Student, Exam } from '../../types';
 import { getClassColor } from '../../utils/classColors';
+import { getStudentSubject, getSubjectShortCode } from '../../utils/subjectCodes';
 
 interface Props {
   plan: SeatingPlanResult | undefined;
@@ -372,16 +373,17 @@ export const ClassDistributionsSection: React.FC<Props> = ({
                   <th className="p-1.5 w-12 text-center">S.No</th>
                   <th className="p-1.5 w-20 text-center font-mono">Okul No</th>
                   <th className="p-1.5">Öğrenci Adı Soyadı</th>
-                  <th className="p-1.5 w-20 text-center">Sınıf</th>
-                  <th className="p-1.5 w-40">Sınav Salonu</th>
-                  <th className="p-1.5 w-24 text-center">Sıra No</th>
+                  <th className="p-1.5 w-24 text-center">Sınıf</th>
+                  <th className="p-1.5 w-20 text-center">Ders</th>
+                  <th className="p-1.5 w-36">Sınav Salonu</th>
+                  <th className="p-1.5 w-20 text-center">Sıra No</th>
                   <th className="p-1.5">Salon Gözetmeni</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredClasses.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-400 italic">
+                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">
                       Arama kriterine uygun öğrenci bulunamadı.
                     </td>
                   </tr>
@@ -393,7 +395,7 @@ export const ClassDistributionsSection: React.FC<Props> = ({
                       <React.Fragment key={group.cls}>
                         {selectedClass === 'ALL' && (
                           <tr className="bg-slate-50/90 font-bold border-y border-slate-200">
-                            <td colSpan={7} className="px-2.5 py-0.5">
+                            <td colSpan={8} className="px-2.5 py-0.5">
                               <div className="flex items-center justify-between text-xs">
                                 <span className={`font-black text-[10.5px] px-1.5 py-0.2 rounded ${colorInfo.badge}`}>
                                   {group.cls} Sınıfı ({group.entries.length} Öğrenci)
@@ -406,42 +408,58 @@ export const ClassDistributionsSection: React.FC<Props> = ({
                           </tr>
                         )}
 
-                        {group.entries.map((item, idx) => (
-                          <tr key={`${group.cls}-${item.student.id}`} className="hover:bg-blue-50/40 transition">
-                            <td className="p-1.5 text-center text-slate-400 font-mono text-[11px]">
-                              {idx + 1}
-                            </td>
-                            <td className="p-1.5 font-mono font-black text-center text-slate-900 text-xs">
-                              {item.student.number}
-                            </td>
-                            <td className="p-1.5 font-bold text-slate-900">
-                              <div className="flex items-center gap-1.5">
-                                <span>{item.student.name} {item.student.surname}</span>
-                                {item.student.isBEP && (
-                                  <span className="text-[9px] bg-purple-100 text-purple-800 border border-purple-200 px-1 py-0.2 rounded font-black shrink-0">
-                                    BEP
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-1.5 text-center">
-                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${colorInfo.badge}`}>
-                                {item.student.classLevel}
-                              </span>
-                            </td>
-                            <td className="p-1.5 font-bold text-blue-900 text-xs truncate" title={item.roomName}>
-                              {item.roomName}
-                            </td>
-                            <td className="p-1.5 text-center">
-                              <span className="font-mono font-black text-[11.5px] bg-black text-white px-2 py-0.5 rounded inline-block shadow-2xs leading-none">
-                                #{item.seatNumber}
-                              </span>
-                            </td>
-                            <td className="p-1.5 text-slate-600 font-medium text-[11px] truncate" title={item.supervisorName}>
-                              {item.supervisorName}
-                            </td>
-                          </tr>
-                        ))}
+                        {group.entries.map((item, idx) => {
+                          const subjName = getStudentSubject(item.student.classLevel, plan, activeExam);
+                          const subjCode = getSubjectShortCode(subjName);
+
+                          return (
+                            <tr key={`${group.cls}-${item.student.id}`} className="hover:bg-blue-50/40 transition">
+                              <td className="p-1.5 text-center text-slate-400 font-mono text-[11px]">
+                                {idx + 1}
+                              </td>
+                              <td className="p-1.5 font-mono font-black text-center text-slate-900 text-xs">
+                                {item.student.number}
+                              </td>
+                              <td className="p-1.5 font-bold text-slate-900">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{item.student.name} {item.student.surname}</span>
+                                  {item.student.isBEP && (
+                                    <span className="text-[9px] bg-purple-100 text-purple-800 border border-purple-200 px-1 py-0.2 rounded font-black shrink-0">
+                                      BEP
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-1.5 text-center whitespace-nowrap">
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded inline-block whitespace-nowrap ${colorInfo.badge}`}
+                                  title={item.student.classLevel}
+                                >
+                                  {item.student.classLevel}
+                                </span>
+                              </td>
+                              <td className="p-1.5 text-center">
+                                <span
+                                  className="bg-indigo-50 text-indigo-900 border border-indigo-200 text-[10px] font-black px-1.5 py-0.5 rounded font-mono inline-block shadow-2xs"
+                                  title={subjName}
+                                >
+                                  {subjCode}
+                                </span>
+                              </td>
+                              <td className="p-1.5 font-bold text-blue-900 text-xs truncate" title={item.roomName}>
+                                {item.roomName}
+                              </td>
+                              <td className="p-1.5 text-center">
+                                <span className="font-mono font-black text-[11.5px] bg-black text-white px-2 py-0.5 rounded inline-block shadow-2xs leading-none">
+                                  #{item.seatNumber}
+                                </span>
+                              </td>
+                              <td className="p-1.5 text-slate-600 font-medium text-[11px] truncate" title={item.supervisorName}>
+                                {item.supervisorName}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </React.Fragment>
                     );
                   })

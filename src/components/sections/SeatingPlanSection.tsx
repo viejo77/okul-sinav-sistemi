@@ -27,11 +27,17 @@ import {
   generateKelebekPlan,
   findMultipleTeacherConflicts,
   MultipleTeacherConflict,
+  getGradeLevel,
 } from '../../services/kelebekEngine';
 import { MultipleTeachersSupervisorModal } from '../modals/MultipleTeachersSupervisorModal';
 import { exportPlanToExcelFile } from '../../services/excelService';
 import { exportPlanToGoogleSheets } from '../../services/googleSheets';
 import { getClassColor } from '../../utils/classColors';
+import {
+  getRoomSubjectGradeDistributions,
+  getStudentSubject,
+  getSubjectShortCode,
+} from '../../utils/subjectCodes';
 
 interface Props {
   activeExam: Exam | undefined;
@@ -226,8 +232,11 @@ export const SeatingPlanSection: React.FC<Props> = ({
     if (!seat || !seat.student) return false;
     const std = seat.student;
 
-    if (selectedClassFilter !== 'ALL' && std.classLevel !== selectedClassFilter) {
-      return false;
+    if (selectedClassFilter !== 'ALL') {
+      const grade = getGradeLevel(std.classLevel);
+      if (std.classLevel !== selectedClassFilter && grade !== selectedClassFilter) {
+        return false;
+      }
     }
 
     if (searchTerm.trim()) {
@@ -681,36 +690,68 @@ export const SeatingPlanSection: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* 3. Sınıf Dağılımı Rozetleri */}
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-bold text-slate-700 mr-1 text-[11px]">Salondaki Sınıf Dağılımı:</span>
-                    {Object.entries(selectedRoom.classDistribution).map(([cls, cnt]) => {
-                      const col = getClassColor(cls);
-                      const isSelected = selectedClassFilter === cls;
-                      return (
+                  {/* 3. Salondaki Ders ve Sınıf Dağılımı (Hangi dersten kaç 9, 10, 11 olduğu) */}
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="font-extrabold text-slate-800 text-[11px] flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                        Salondaki Ders ve Sınıf Dağılımı (Soru Kitapçığı / Evrak Sayıları):
+                      </span>
+                      {selectedClassFilter !== 'ALL' && (
                         <button
-                          key={cls}
                           type="button"
-                          onClick={() => setSelectedClassFilter(isSelected ? 'ALL' : cls)}
-                          className={`px-2 py-0.5 rounded-md font-bold text-xs border transition flex items-center gap-1.5 cursor-pointer ${
-                            col.lightBadge
-                          } ${isSelected ? 'ring-2 ring-blue-500 shadow-xs' : 'hover:opacity-90'}`}
-                          title={`${cls} sınıfındaki öğrencileri vurgula`}
+                          onClick={() => setSelectedClassFilter('ALL')}
+                          className="text-[10px] text-blue-600 hover:underline font-bold"
                         >
-                          <span>{cls}</span>
-                          <span className="text-[10px] font-mono opacity-80">({cnt})</span>
+                          Filtreyi Temizle ({selectedClassFilter})
                         </button>
-                      );
-                    })}
-                    {selectedClassFilter !== 'ALL' && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedClassFilter('ALL')}
-                        className="text-[10px] text-blue-600 hover:underline font-semibold ml-auto"
-                      >
-                        Filtreyi Temizle
-                      </button>
-                    )}
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-stretch gap-2">
+                      {getRoomSubjectGradeDistributions(selectedRoom, currentPlan, activeExam).map(dist => (
+                        <div
+                          key={dist.subjectName}
+                          className="bg-white border border-slate-300 rounded-lg p-1.5 shadow-2xs flex flex-wrap items-center gap-2"
+                        >
+                          <div className="flex items-center gap-1.5 font-black text-slate-900 border-r border-slate-200 pr-2">
+                            <span className="bg-indigo-600 text-white font-mono text-[9px] px-1.5 py-0.5 rounded font-black">
+                              {dist.subjectCode}
+                            </span>
+                            <span className="text-xs">{dist.subjectName}:</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {Object.entries(dist.gradeCounts)
+                              .sort(([a], [b]) => (Number(a) || 99) - (Number(b) || 99))
+                              .map(([grade, count]) => {
+                                const isSelected = selectedClassFilter === grade;
+                                return (
+                                  <button
+                                    key={grade}
+                                    type="button"
+                                    onClick={() => setSelectedClassFilter(isSelected ? 'ALL' : grade)}
+                                    className={`px-2 py-0.5 rounded-md font-bold text-xs border transition flex items-center gap-1 cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-blue-600 text-white border-blue-700 shadow-xs ring-2 ring-blue-300'
+                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+                                    }`}
+                                    title={`${grade}. sınıf öğrencilerini vurgula`}
+                                  >
+                                    <span>{grade}. Sınıf:</span>
+                                    <span className="font-mono font-black text-blue-700 bg-white/80 px-1 rounded text-[11px]">
+                                      {count}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            <span className="text-[10px] font-bold text-slate-400 font-mono">
+                              (Toplam: {dist.totalStudents})
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* 4. Controls & Search Toolbar */}
@@ -974,12 +1015,20 @@ export const SeatingPlanSection: React.FC<Props> = ({
                                                 </span>
                                               </div>
                                               {leftSeat?.student ? (
-                                                <SideBySideSeatCard
-                                                  seatNumber={leftSeat.seatNumber}
-                                                  student={leftSeat.student}
-                                                  isHighlighted={leftHighlighted}
-                                                  isFrontAndWall={isFrontRow && isWallCol && leftIsWall}
-                                                />
+                                                (() => {
+                                                  const leftSubjName = getStudentSubject(leftSeat.student.classLevel, currentPlan, activeExam);
+                                                  const leftSubjCode = getSubjectShortCode(leftSubjName);
+                                                  return (
+                                                    <SideBySideSeatCard
+                                                      seatNumber={leftSeat.seatNumber}
+                                                      student={leftSeat.student}
+                                                      isHighlighted={leftHighlighted}
+                                                      isFrontAndWall={isFrontRow && isWallCol && leftIsWall}
+                                                      subjectCode={leftSubjCode}
+                                                      subjectName={leftSubjName}
+                                                    />
+                                                  );
+                                                })()
                                               ) : (
                                                 <div className="h-full min-h-[48px] border border-dashed border-slate-200 rounded-md p-1 flex flex-col items-center justify-center text-center text-slate-400 text-[8.5px] italic bg-slate-50/70 min-w-0">
                                                   <Armchair className="w-3 h-3 mb-0.5 opacity-35" />
@@ -997,12 +1046,20 @@ export const SeatingPlanSection: React.FC<Props> = ({
                                                 </span>
                                               </div>
                                               {rightSeat?.student ? (
-                                                <SideBySideSeatCard
-                                                  seatNumber={rightSeat.seatNumber}
-                                                  student={rightSeat.student}
-                                                  isHighlighted={rightHighlighted}
-                                                  isFrontAndWall={isFrontRow && isWallCol && rightIsWall}
-                                                />
+                                                (() => {
+                                                  const rightSubjName = getStudentSubject(rightSeat.student.classLevel, currentPlan, activeExam);
+                                                  const rightSubjCode = getSubjectShortCode(rightSubjName);
+                                                  return (
+                                                    <SideBySideSeatCard
+                                                      seatNumber={rightSeat.seatNumber}
+                                                      student={rightSeat.student}
+                                                      isHighlighted={rightHighlighted}
+                                                      isFrontAndWall={isFrontRow && isWallCol && rightIsWall}
+                                                      subjectCode={rightSubjCode}
+                                                      subjectName={rightSubjName}
+                                                    />
+                                                  );
+                                                })()
                                               ) : (
                                                 <div className="h-full min-h-[48px] border border-dashed border-slate-200 rounded-md p-1 flex flex-col items-center justify-center text-center text-slate-400 text-[8.5px] italic bg-slate-50/70 min-w-0">
                                                   <Armchair className="w-3 h-3 mb-0.5 opacity-35" />
@@ -1051,11 +1108,19 @@ export const SeatingPlanSection: React.FC<Props> = ({
                                     Sol Koltuk (#{seat1?.seatNumber})
                                   </div>
                                   {seat1?.student ? (
-                                    <SideBySideSeatCard
-                                      seatNumber={seat1.seatNumber}
-                                      student={seat1.student}
-                                      isHighlighted={seat1Highlighted}
-                                    />
+                                    (() => {
+                                      const s1Subj = getStudentSubject(seat1.student.classLevel, currentPlan, activeExam);
+                                      const s1Code = getSubjectShortCode(s1Subj);
+                                      return (
+                                        <SideBySideSeatCard
+                                          seatNumber={seat1.seatNumber}
+                                          student={seat1.student}
+                                          isHighlighted={seat1Highlighted}
+                                          subjectCode={s1Code}
+                                          subjectName={s1Subj}
+                                        />
+                                      );
+                                    })()
                                   ) : (
                                     <div className="border border-dashed border-slate-300 rounded-md p-1.5 text-center text-slate-400 text-xs italic bg-slate-50/50">
                                       #{seat1?.seatNumber} [Boş Koltuk]
@@ -1069,11 +1134,19 @@ export const SeatingPlanSection: React.FC<Props> = ({
                                     Sağ Koltuk (#{seat2?.seatNumber})
                                   </div>
                                   {seat2?.student ? (
-                                    <SideBySideSeatCard
-                                      seatNumber={seat2.seatNumber}
-                                      student={seat2.student}
-                                      isHighlighted={seat2Highlighted}
-                                    />
+                                    (() => {
+                                      const s2Subj = getStudentSubject(seat2.student.classLevel, currentPlan, activeExam);
+                                      const s2Code = getSubjectShortCode(s2Subj);
+                                      return (
+                                        <SideBySideSeatCard
+                                          seatNumber={seat2.seatNumber}
+                                          student={seat2.student}
+                                          isHighlighted={seat2Highlighted}
+                                          subjectCode={s2Code}
+                                          subjectName={s2Subj}
+                                        />
+                                      );
+                                    })()
                                   ) : (
                                     <div className="border border-dashed border-slate-300 rounded-md p-1.5 text-center text-slate-400 text-xs italic bg-slate-50/50">
                                       #{seat2?.seatNumber} [Boş Koltuk]
@@ -1143,6 +1216,8 @@ interface SeatCardProps {
   student: Student;
   isHighlighted?: boolean;
   isFrontAndWall?: boolean;
+  subjectCode?: string;
+  subjectName?: string;
 }
 
 const SideBySideSeatCard: React.FC<SeatCardProps> = ({
@@ -1150,6 +1225,8 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
   student,
   isHighlighted = false,
   isFrontAndWall = false,
+  subjectCode,
+  subjectName,
 }) => {
   const col = getClassColor(student.classLevel);
 
@@ -1162,17 +1239,18 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
           ? 'ring-1 ring-amber-400 shadow-xs'
           : 'hover:shadow-2xs'
       }`}
-      title={`Koltuk #${seatNumber} | ${student.classLevel} - No: ${student.number} - ${student.name} ${student.surname}`}
+      title={`Koltuk #${seatNumber} | ${student.classLevel} - No: ${student.number} - ${student.name} ${student.surname}${subjectName ? ` (${subjectName})` : ''}`}
     >
-      {/* Top row: Seat Number badge & Class Badge */}
-      <div className="flex items-center justify-between gap-0.5 min-w-0">
+      {/* Top row: Seat Number badge (Left) & Class Badge (Right - Clear & Visible) */}
+      <div className="flex items-center justify-between gap-1 min-w-0">
         <span className="w-4 h-4 rounded bg-slate-900 text-white font-mono font-black text-[8.5px] flex items-center justify-center shrink-0 shadow-2xs">
           #{seatNumber}
         </span>
 
-        <div className="flex items-center gap-0.5 overflow-hidden min-w-0">
+        <div className="flex items-center gap-0.5 min-w-0 justify-end">
           <span
-            className={`font-black px-1 py-0.2 rounded text-[8.5px] shadow-2xs truncate max-w-[55px] ${col.badge}`}
+            className={`font-black px-1.5 py-0.2 rounded text-[8.5px] shadow-2xs shrink-0 ${col.badge}`}
+            title={student.classLevel}
           >
             {student.classLevel}
           </span>
@@ -1184,14 +1262,26 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom row: Student Full Name & Number */}
+      {/* Middle row: Student Full Name */}
       <div className="mt-0.5 pt-0.5 border-t border-black/5 min-w-0">
         <div className="font-extrabold text-[9.5px] text-slate-900 truncate leading-tight">
           {student.name} {student.surname}
         </div>
-        <div className="text-[8.5px] text-slate-500 font-mono font-medium leading-none mt-0.5 truncate">
+      </div>
+
+      {/* Bottom row: Student Number (Left) & Sınav Dersi Kodu (Right) */}
+      <div className="pt-0.5 border-t border-black/5 flex items-center justify-between text-[8.5px] font-mono leading-none m-0">
+        <span className="text-slate-600 font-bold truncate">
           No: {student.number}
-        </div>
+        </span>
+        {subjectCode && (
+          <span
+            className="bg-indigo-600 text-white font-black px-1 py-0.2 rounded text-[7.5px] uppercase shrink-0 font-mono shadow-2xs"
+            title={`Sınav Dersi: ${subjectName || subjectCode}`}
+          >
+            {subjectCode}
+          </span>
+        )}
       </div>
     </div>
   );

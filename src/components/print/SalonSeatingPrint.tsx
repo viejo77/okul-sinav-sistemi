@@ -1,8 +1,14 @@
 import React from 'react';
-import { RoomSeatingPlan, SeatingPlanResult, SeatedStudentInfo, Student } from '../../types';
+import { RoomSeatingPlan, SeatingPlanResult, SeatedStudentInfo, Student, Exam } from '../../types';
+import {
+  getStudentSubject,
+  getSubjectShortCode,
+  getRoomSubjectGradeDistributions,
+} from '../../utils/subjectCodes';
 
 interface Props {
   plan: SeatingPlanResult;
+  exam?: Exam;
   selectedRoomId?: string;
   forPrint?: boolean;
   roomsPerPage?: 1 | 2;
@@ -10,6 +16,7 @@ interface Props {
 
 export const SalonSeatingPrint: React.FC<Props> = ({
   plan,
+  exam,
   selectedRoomId = 'ALL',
   forPrint = false,
   roomsPerPage = 2,
@@ -74,24 +81,29 @@ export const SalonSeatingPrint: React.FC<Props> = ({
     }
 
     const std = seat.student;
+    const subjName = getStudentSubject(std.classLevel, plan, exam);
+    const subjCode = getSubjectShortCode(subjName);
 
     return (
       <div
-        className="border-2 border-black rounded p-1 flex-1 flex flex-col justify-between bg-white min-w-0 overflow-visible"
-        title={`Koltuk #${seat.seatNumber} | ${std.classLevel} - No: ${std.number} - ${std.name} ${std.surname}`}
+        className="border-2 border-black rounded p-0.5 sm:p-1 flex-1 flex flex-col justify-between bg-white min-w-0 overflow-hidden"
+        title={`Koltuk #${seat.seatNumber} | ${std.classLevel} - No: ${std.number} - ${std.name} ${std.surname} | Sınav Dersi: ${subjName}`}
       >
-        {/* Top row: Koltuk No (Black badge) & Sınıf (White badge with black border) */}
-        <div className="flex items-center justify-between gap-1 pb-0.5 border-b border-black m-0 leading-normal">
-          <span className="bg-black text-white font-mono font-black text-[11px] px-1.5 py-0.5 rounded shrink-0 leading-none">
+        {/* Top row: Koltuk No (Left) & Sınıf (Right - High contrast, clearly visible) */}
+        <div className="flex items-center justify-between gap-1 pb-0.5 border-b border-black m-0 leading-tight w-full min-w-0">
+          <span className="bg-black text-white font-mono font-black text-[9px] sm:text-[9.5px] px-1 py-0.2 rounded shrink-0 leading-none">
             #{seat.seatNumber}
           </span>
-          <div className="flex items-center gap-1 shrink-0 m-0">
-            <span className="font-black text-[9px] text-black border border-black bg-white px-1.5 py-0.5 rounded leading-none">
+          <div className="flex items-center gap-0.5 min-w-0 justify-end">
+            <span
+              className="font-black text-[8.5px] sm:text-[9.5px] text-black border border-black bg-white px-1.5 py-0.2 rounded leading-none shrink-0"
+              title={std.classLevel}
+            >
               {std.classLevel}
             </span>
             {std.isBEP && (
-              <span className="bg-black text-white font-black text-[8px] px-1 py-0.5 rounded uppercase shrink-0 leading-none">
-                BEP
+              <span className="bg-black text-white font-black text-[7px] px-0.5 py-0.2 rounded uppercase shrink-0 leading-none">
+                B
               </span>
             )}
           </div>
@@ -100,9 +112,17 @@ export const SalonSeatingPrint: React.FC<Props> = ({
         {/* Middle row: Student Name & Surname on separate lines (No vertical slicing) */}
         {renderStudentNameAndSurname(std)}
 
-        {/* Bottom row: Student Number */}
-        <div className="pt-0.5 border-t border-slate-300 text-center text-[8.5px] font-mono text-black font-extrabold leading-normal m-0">
-          No: {std.number}
+        {/* Bottom row: Student Number (Left) & Sınav Dersi Kodu (Right) */}
+        <div className="pt-0.5 border-t border-slate-300 flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono leading-none m-0">
+          <span className="font-extrabold text-black truncate">
+            No: {std.number}
+          </span>
+          <span
+            className="font-mono font-black text-[7.5px] sm:text-[8px] bg-black text-white px-1 py-0.2 rounded leading-none shrink-0"
+            title={`Sınav Dersi: ${subjName}`}
+          >
+            {subjCode}
+          </span>
         </div>
       </div>
     );
@@ -167,9 +187,7 @@ export const SalonSeatingPrint: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    {/* Header Row 2: Room Name (Left) + Class Distribution (Center) + Supervisor (Right)
-                        NOTICE: "KAPI SOLDA / KAPI SAĞDA" is REMOVED from this line as requested!
-                    */}
+                    {/* Header Row 2: Room Name (Left) + Supervisor (Right) */}
                     <div className="flex justify-between items-center pt-1 text-[9.5px] gap-2">
                       {/* Left: Salon & Total Students */}
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -177,29 +195,51 @@ export const SalonSeatingPrint: React.FC<Props> = ({
                           SALON: {room.classroomName}
                         </span>
                         <span className="font-bold text-black border border-black px-1.5 py-0.5 rounded leading-none">
-                          {room.totalAssigned} / {room.capacity} Öğr.
+                          {room.totalAssigned} / {room.capacity} Öğrenci
                         </span>
-                      </div>
-
-                      {/* Center: Class Distribution Pills (Clean Monochrome) */}
-                      <div className="flex items-center gap-1 overflow-hidden">
-                        <span className="font-bold text-black text-[9px] shrink-0">Dağılım:</span>
-                        <div className="flex items-center gap-1 overflow-x-hidden">
-                          {Object.entries(room.classDistribution).map(([cls, cnt]) => (
-                            <span
-                              key={cls}
-                              className="px-1.5 py-0.5 rounded font-black text-[8.5px] border border-black bg-white text-black whitespace-nowrap leading-none"
-                            >
-                              {cls}: <strong>{cnt}</strong>
-                            </span>
-                          ))}
-                        </div>
                       </div>
 
                       {/* Right: Supervisor */}
                       <div className="shrink-0 font-bold border border-black px-2 py-0.5 rounded text-black whitespace-nowrap leading-none">
                         Gözetmen: <strong className="font-black text-black">{room.supervisorName}</strong>
                         {room.supervisorBranch ? ` (${room.supervisorBranch})` : ''}
+                      </div>
+                    </div>
+
+                    {/* Header Row 3: Dedicated Full-Width Subject & Grade Distribution Bar (Soru Kitapçığı & Evrak Dağıtımı)
+                        Full width, zero horizontal cutoff, wraps cleanly so all subjects and all grades are 100% visible!
+                    */}
+                    <div className="pt-1 mt-1 border-t border-black flex flex-wrap items-center gap-1.5 text-[9px] w-full">
+                      <span className="font-black text-black bg-black text-white px-1.5 py-0.5 rounded uppercase text-[8px] shrink-0 leading-none">
+                        Evrak Dağılımı:
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                        {(() => {
+                          const distributions = getRoomSubjectGradeDistributions(room, plan, exam);
+                          return distributions.map(dist => {
+                            const gradeEntries = Object.entries(dist.gradeCounts)
+                              .sort(([gA], [gB]) => (Number(gA) || 0) - (Number(gB) || 0))
+                              .map(([grade, count]) => `${grade}. Sınıf: ${count}`);
+
+                            return (
+                              <span
+                                key={dist.subjectName}
+                                className="px-1.5 py-0.5 rounded font-extrabold text-[8.5px] border border-black bg-slate-50 text-black flex items-center gap-1 leading-none shadow-2xs"
+                              >
+                                <span className="bg-black text-white px-1 py-0.2 rounded text-[7.5px] font-mono font-black">
+                                  {dist.subjectCode}
+                                </span>
+                                <span className="font-extrabold">{dist.subjectName}:</span>
+                                <strong className="font-black text-black">
+                                  {gradeEntries.join(' • ')}
+                                </strong>
+                                <span className="text-[7.5px] text-slate-600 font-mono font-normal">
+                                  (Top: {dist.totalStudents})
+                                </span>
+                              </span>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   </div>

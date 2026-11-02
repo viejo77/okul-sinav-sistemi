@@ -803,7 +803,7 @@ export default function App() {
       {/* Default Print Output (Active ONLY when window.print() is called on Section 8) */}
       {currentPlan && activeTab === 8 && (
         <div className="print-only">
-          <SalonSeatingPrint plan={currentPlan} forPrint={true} />
+          <SalonSeatingPrint plan={currentPlan} exam={activeExam} forPrint={true} />
           <SupervisorListPrint plan={currentPlan} exam={activeExam} subjects={subjects} forPrint={true} />
           <BEPStudentPrint plan={currentPlan} forPrint={true} />
           <ClassDoorListsPrint plan={currentPlan} exam={activeExam} forPrint={true} />
