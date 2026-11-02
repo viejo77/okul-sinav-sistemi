@@ -1241,28 +1241,14 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
       }`}
       title={`Koltuk #${seatNumber} | ${student.classLevel} - No: ${student.number} - ${student.name} ${student.surname}${subjectName ? ` (${subjectName})` : ''}`}
     >
-      {/* Top row: Sıra Numarası (Left) & Okul Numarası (Right - No collision with long class names!) */}
+      {/* Top row: Sıra Numarası (Left) & Sınıf (Right - e.g. AMP 9-A, ATP 10-B) */}
       <div className="flex items-center justify-between gap-1 min-w-0">
         <span className="h-4 px-1 rounded bg-slate-900 text-white font-mono font-black text-[8.5px] flex items-center justify-center shrink-0 shadow-2xs">
           #{seatNumber}
         </span>
-        <span className="text-[8.5px] text-slate-700 font-mono font-bold truncate">
-          No: {student.number}
-        </span>
-      </div>
-
-      {/* Middle row: Student Full Name */}
-      <div className="mt-0.5 pt-0.5 border-t border-black/5 min-w-0">
-        <div className="font-extrabold text-[9.5px] text-slate-900 truncate leading-tight">
-          {student.name} {student.surname}
-        </div>
-      </div>
-
-      {/* Bottom row: Sınıf (Left - AMP 9-A, ATP 10-B) & Sınav Dersi Kodu (Right) */}
-      <div className="pt-0.5 border-t border-black/5 flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono leading-none m-0 gap-1 min-w-0">
-        <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-0.5 min-w-0">
           <span
-            className={`font-black px-1.5 py-0.2 rounded text-[8px] shadow-2xs shrink-0 tracking-tight ${col.badge}`}
+            className={`font-black px-1.5 py-0.2 rounded text-[8px] shadow-2xs truncate max-w-[58px] ${col.badge}`}
             title={student.classLevel}
           >
             {student.classLevel}
@@ -1273,6 +1259,20 @@ const SideBySideSeatCard: React.FC<SeatCardProps> = ({
             </span>
           )}
         </div>
+      </div>
+
+      {/* Middle row: Student Full Name */}
+      <div className="mt-0.5 pt-0.5 border-t border-black/5 min-w-0">
+        <div className="font-extrabold text-[9.5px] text-slate-900 truncate leading-tight">
+          {student.name} {student.surname}
+        </div>
+      </div>
+
+      {/* Bottom row: Öğrenci Numarası (Left - No 'No:' prefix as requested) & Sınav Dersi Kodu (Right) */}
+      <div className="pt-0.5 border-t border-black/5 flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono leading-none m-0 gap-1 min-w-0">
+        <span className="text-slate-800 font-extrabold text-[9px] truncate" title={`Okul No: ${student.number}`}>
+          {student.number}
+        </span>
         {subjectCode && (
           <span
             className="bg-indigo-600 text-white font-black px-1 py-0.2 rounded text-[7.5px] uppercase shrink-0 font-mono shadow-2xs"
