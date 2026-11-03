@@ -199,12 +199,25 @@ export const ExamDefinitionSection: React.FC<Props> = ({
     const raw = newClassNameInput.trim();
     if (!raw) return;
 
-    const parts = raw.split(/[,;\s]+/).map(p => p.trim()).filter(Boolean);
+    // Sadece virgül, noktalı virgül veya yeni satıra göre ayır (boşlukları koruyarak "AMP 10-C", "ATP 9-A" gibi isimlerin bozulmasını engeller)
+    const parts = raw
+      .split(/[,;\n]+/)
+      .map(p => p.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) return;
+
     parts.forEach(p => {
       if (onAddClass) {
         onAddClass(p);
       }
     });
+
+    // Eklenen ilk sınıfı atama kutusunda otomatik seç
+    if (parts[0]) {
+      setSelectedClassToAssign(parts[0].toUpperCase().trim());
+    }
+
     setNewClassNameInput('');
     showToast(`"${parts.join(', ')}" şubesi eklendi.`);
   };
@@ -1309,96 +1322,6 @@ export const ExamDefinitionSection: React.FC<Props> = ({
         </div>
       )}
 
-      {/* TEKİL SINIF SİLME ONAY MODALI */}
-      {classToDelete && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-gradient-to-r from-rose-600 to-rose-700 px-5 py-3.5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-5 h-5 text-rose-100" />
-                <h3 className="font-bold text-sm tracking-wide">Sınıfı / Şubeyi Sil</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setClassToDelete(null);
-                  setAlsoDeleteStudentsOfClass(false);
-                }}
-                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-rose-800/50 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="flex items-start gap-3 bg-rose-50 p-3.5 rounded-xl border border-rose-200 text-xs text-rose-900">
-                <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-sm text-rose-950">
-                    "{classToDelete}" sınıfını silmek istediğinize emin misiniz?
-                  </p>
-                  <p className="text-slate-600 leading-relaxed">
-                    Bu işlem sınıfı <strong>sınıf seçimi listesinden</strong>, tüm <strong>sınav programından</strong> ve <strong>pano takviminden</strong> kalıcı olarak kaldıracaktır. Okulda olmayan bu şube bir daha sınavlara dahil edilmeyecektir.
-                  </p>
-                </div>
-              </div>
-
-              {/* Sınıf Durumu Bilgisi */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                  <span className="text-slate-500 block text-[11px]">Kayıtlı Öğrenci</span>
-                  <strong className="text-slate-800 font-bold text-sm">
-                    {getStudentCountForClass(classToDelete)} Öğrenci
-                  </strong>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                  <span className="text-slate-500 block text-[11px]">Atandığı Sınav</span>
-                  <strong className="text-slate-800 font-bold text-sm">
-                    {getExamCountForClass(classToDelete)} Sınav
-                  </strong>
-                </div>
-              </div>
-
-              {/* Öğrenci Silme Opsiyonu */}
-              {getStudentCountForClass(classToDelete) > 0 && (
-                <label className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={alsoDeleteStudentsOfClass}
-                    onChange={e => setAlsoDeleteStudentsOfClass(e.target.checked)}
-                    className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-400 cursor-pointer"
-                  />
-                  <span>
-                    Bu şubede kayıtlı <strong>{getStudentCountForClass(classToDelete)} öğrenciyi</strong> de öğrenci listesinden sil
-                  </span>
-                </label>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClassToDelete(null);
-                    setAlsoDeleteStudentsOfClass(false);
-                  }}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDeleteClass}
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Evet, Sınıfı Sil</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* OKUL SINIF VE ŞUBE YÖNETİMİ MODALI */}
       {isManageClassesModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
@@ -1605,6 +1528,97 @@ export const ExamDefinitionSection: React.FC<Props> = ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TEKİL SINIF SİLME ONAY MODALI (z-[70] ile Şubeleri Yönet modalının önünde açılır) */}
+      {classToDelete && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-300 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-gradient-to-r from-rose-600 to-rose-700 px-5 py-3.5 text-white flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-rose-100" />
+                <h3 className="font-bold text-sm tracking-wide">Sınıfı / Şubeyi Sil</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setClassToDelete(null);
+                  setAlsoDeleteStudentsOfClass(false);
+                }}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-rose-800/50 transition cursor-pointer"
+                title="Kapat"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="flex items-start gap-3 bg-rose-50 p-3.5 rounded-xl border border-rose-200 text-xs text-rose-900">
+                <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-sm text-rose-950">
+                    "{classToDelete}" sınıfını silmek istediğinize emin misiniz?
+                  </p>
+                  <p className="text-slate-600 leading-relaxed">
+                    Bu işlem sınıfı <strong>sınıf seçimi listesinden</strong>, tüm <strong>sınav programından</strong> ve <strong>pano takviminden</strong> kalıcı olarak kaldıracaktır. Okulda olmayan bu şube bir daha sınavlara dahil edilmeyecektir.
+                  </p>
+                </div>
+              </div>
+
+              {/* Sınıf Durumu Bilgisi */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                  <span className="text-slate-500 block text-[11px]">Kayıtlı Öğrenci</span>
+                  <strong className="text-slate-800 font-bold text-sm">
+                    {getStudentCountForClass(classToDelete)} Öğrenci
+                  </strong>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                  <span className="text-slate-500 block text-[11px]">Atandığı Sınav</span>
+                  <strong className="text-slate-800 font-bold text-sm">
+                    {getExamCountForClass(classToDelete)} Sınav
+                  </strong>
+                </div>
+              </div>
+
+              {/* Öğrenci Silme Opsiyonu */}
+              {getStudentCountForClass(classToDelete) > 0 && (
+                <label className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alsoDeleteStudentsOfClass}
+                    onChange={e => setAlsoDeleteStudentsOfClass(e.target.checked)}
+                    className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-400 cursor-pointer"
+                  />
+                  <span>
+                    Bu şubede kayıtlı <strong>{getStudentCountForClass(classToDelete)} öğrenciyi</strong> de öğrenci listesinden sil
+                  </span>
+                </label>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassToDelete(null);
+                    setAlsoDeleteStudentsOfClass(false);
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteClass}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Evet, Sınıfı Sil</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
