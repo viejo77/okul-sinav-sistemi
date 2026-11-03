@@ -14,7 +14,11 @@ import {
   DoorClosed,
   GraduationCap,
   Info,
+  RotateCcw,
+  History,
+  AlertTriangle,
 } from 'lucide-react';
+import { getAutoBackupSnapshot } from '../../services/storage';
 
 interface DataManagementModalProps {
   isOpen: boolean;
@@ -23,6 +27,9 @@ interface DataManagementModalProps {
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
   onResetData: () => void;
+  onRestoreAutoBackup?: () => void;
+  onRestoreDeletedClasses?: () => void;
+  deletedClassesCount?: number;
   stats: {
     examsCount: number;
     studentsCount: number;
@@ -39,9 +46,13 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   onExportBackup,
   onImportBackup,
   onResetData,
+  onRestoreAutoBackup,
+  onRestoreDeletedClasses,
+  deletedClassesCount = 0,
   stats,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoBackup = isOpen ? getAutoBackupSnapshot() : null;
 
   if (!isOpen) return null;
 
@@ -139,6 +150,104 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Emergency Auto-Backup Restore Point (If available in localStorage) */}
+          {autoBackup && (
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400/80 rounded-xl p-3.5 space-y-2 text-emerald-950 shadow-xs animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <History className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-black text-xs text-emerald-950 flex items-center gap-1.5">
+                      <span>Kurtarılabilir Otomatik Yedek Noktası Bulundu</span>
+                      <span className="bg-emerald-200 text-emerald-900 text-[9.5px] font-black px-1.5 py-0.2 rounded font-mono">
+                        HAZIR
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800 mt-0.5">
+                      Önceki Oturum Kayıt Zamanı: <strong>{autoBackup.meta.timestamp}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onRestoreAutoBackup) onRestoreAutoBackup();
+                    onClose();
+                  }}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-black shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition shrink-0"
+                  title="Önceki oturumdaki sınav ve öğrenci verilerini geri getir"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Son Oturum Verilerini Geri Yükle</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-[10.5px] bg-white/80 px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-900 font-medium">
+                <span className="font-bold">Yedek Noktası İçeriği:</span>
+                <span className="bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                  {autoBackup.meta.examsCount} Sınav
+                </span>
+                <span>•</span>
+                <span className="bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                  {autoBackup.meta.studentsCount} Öğrenci
+                </span>
+                <span>•</span>
+                <span className="bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                  {autoBackup.meta.classroomsCount} Salon
+                </span>
+                <span>•</span>
+                <span className="bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                  {autoBackup.meta.teachersCount} Öğretmen
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Hidden / Deleted Classes Quick Restore */}
+          {deletedClassesCount > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-950">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-[11.5px]">
+                  Okul listesinde gizlenmiş / silinmiş <strong>{deletedClassesCount} adet şube</strong> bulunuyor. Bu nedenle sınıflarınız görünmüyor olabilir.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRestoreDeletedClasses) onRestoreDeletedClasses();
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0 shadow-2xs"
+                title="Tüm silinmiş şubeleri tek tıkla geri getir"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Tüm Şubeleri Geri Getir</span>
+              </button>
+            </div>
+          )}
+
+          {/* Troubleshooting Info Box */}
+          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 text-[11px] text-blue-950 space-y-1.5">
+            <div className="font-extrabold flex items-center gap-1.5 text-blue-900">
+              <Info className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Verilerim Neden Görünmüyor Olabilir?</span>
+            </div>
+            <ul className="list-disc pl-4 space-y-1 text-slate-700">
+              <li>
+                <strong>Farklı Sekme veya Önizleme Bağlantısı:</strong> Veriler tarayıcının yerel hafızasında tutulur. Eğer çalışmanızı önceki bir sekmede veya farklı bir URL&apos;de yaptıysanız, o sekmeyi açarak veya yukarıdaki <strong>&quot;Tüm Verileri Yedekle (JSON)&quot;</strong> ile indirip buraya yükleyebilirsiniz.
+              </li>
+              <li>
+                <strong>Silinen Şubeler:</strong> Eğer şubeleri temizlediyseniz, yukarıdaki sarı kutudan veya <em>Sınav Tanımlama &gt; Şubeleri Yönet &gt; Silinen Şubeler</em> bölümünden şubelerinizi anında geri getirebilirsiniz.
+              </li>
+              <li>
+                <strong>Hazır Okul Verisi:</strong> Sınavları sıfırdan girmek istemiyorsanız aşağıdaki <strong>&quot;Örnek Demo Okul Verisi Yükle&quot;</strong> butonuna basarak 100+ öğrenci, 4 salon ve sınav takvimini hemen geri getirebilirsiniz.
+              </li>
+            </ul>
           </div>
 
           {/* Action Cards Grid */}

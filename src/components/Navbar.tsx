@@ -43,6 +43,9 @@ interface NavbarProps {
   onOpenHelpTips: () => void;
   onOpenPrintModal?: () => void;
   onPrintBoardSchedule?: () => void;
+  onRestoreAutoBackup?: () => void;
+  onRestoreDeletedClasses?: () => void;
+  deletedClassesCount?: number;
   studentsCount?: number;
   classroomsCount?: number;
   teachersCount?: number;
@@ -64,6 +67,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenHelpTips,
   onOpenPrintModal,
   onPrintBoardSchedule,
+  onRestoreAutoBackup,
+  onRestoreDeletedClasses,
+  deletedClassesCount = 0,
   studentsCount = 0,
   classroomsCount = 0,
   teachersCount = 0,
@@ -261,6 +267,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         onExportBackup={onExportBackup}
         onImportBackup={onImportBackup}
         onResetData={onResetData}
+        onRestoreAutoBackup={onRestoreAutoBackup}
+        onRestoreDeletedClasses={onRestoreDeletedClasses}
+        deletedClassesCount={deletedClassesCount}
         stats={{
           examsCount: exams.length,
           studentsCount,

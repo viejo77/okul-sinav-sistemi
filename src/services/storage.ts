@@ -83,6 +83,52 @@ export const loadAppState = (): AppStateData => {
   }
 };
 
+const SNAPSHOT_KEY = 'kelebek_autobackup_last';
+const SNAPSHOT_META_KEY = 'kelebek_autobackup_meta';
+
+export interface AutoBackupSnapshotInfo {
+  timestamp: string;
+  examsCount: number;
+  studentsCount: number;
+  classroomsCount: number;
+  teachersCount: number;
+}
+
+export const getAutoBackupSnapshot = (): {
+  data: AppStateData;
+  meta: AutoBackupSnapshotInfo;
+} | null => {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    const metaRaw = localStorage.getItem(SNAPSHOT_META_KEY);
+    if (!raw) return null;
+    const data: AppStateData = JSON.parse(raw);
+    const meta: AutoBackupSnapshotInfo = metaRaw
+      ? JSON.parse(metaRaw)
+      : {
+          timestamp: 'Önceki Oturum',
+          examsCount: data.exams?.length || 0,
+          studentsCount: data.students?.length || 0,
+          classroomsCount: data.classrooms?.length || 0,
+          teachersCount: data.teachers?.length || 0,
+        };
+    return { data, meta };
+  } catch {
+    return null;
+  }
+};
+
+export const restoreAutoBackupSnapshot = (): AppStateData | null => {
+  try {
+    const snapshot = getAutoBackupSnapshot();
+    if (!snapshot) return null;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot.data));
+    return snapshot.data;
+  } catch {
+    return null;
+  }
+};
+
 export const saveAppState = (state: Partial<AppStateData>): void => {
   try {
     let current: Partial<AppStateData> = {};
@@ -90,6 +136,21 @@ export const saveAppState = (state: Partial<AppStateData>): void => {
     if (raw) {
       try {
         current = JSON.parse(raw);
+        // If current state has data, maintain it as the last auto-backup point
+        if (
+          (current.students && current.students.length > 0) ||
+          (current.exams && current.exams.length > 0)
+        ) {
+          localStorage.setItem(SNAPSHOT_KEY, raw);
+          const meta: AutoBackupSnapshotInfo = {
+            timestamp: new Date().toLocaleString('tr-TR'),
+            examsCount: current.exams?.length || 0,
+            studentsCount: current.students?.length || 0,
+            classroomsCount: current.classrooms?.length || 0,
+            teachersCount: current.teachers?.length || 0,
+          };
+          localStorage.setItem(SNAPSHOT_META_KEY, JSON.stringify(meta));
+        }
       } catch {
         current = {};
       }

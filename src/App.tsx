@@ -48,6 +48,7 @@ import {
   exportBackupFile,
   importBackupFile,
   clearAllData,
+  restoreAutoBackupSnapshot,
 } from './services/storage';
 import {
   getInitialMockData,
@@ -581,6 +582,36 @@ export default function App() {
     }
   };
 
+  // Restore from auto-backup snapshot
+  const handleRestoreFromAutoBackup = () => {
+    const restored = restoreAutoBackupSnapshot();
+    if (restored) {
+      setExams(restored.exams || []);
+      setActiveExamId(restored.activeExamId || (restored.exams && restored.exams[0]?.id) || '');
+      setSubjects(restored.subjects || []);
+      setStudents(restored.students || []);
+      setClassrooms(restored.classrooms || []);
+      setTeachers(restored.teachers || []);
+      setSavedPlans(restored.savedPlans || {});
+      if (restored.responsibilitySettings) {
+        setResponsibilitySettings(restored.responsibilitySettings);
+      }
+      if (restored.responsibilityExams) {
+        setResponsibilityExams(restored.responsibilityExams);
+      }
+    }
+  };
+
+  // Restore all deleted/hidden classes
+  const handleRestoreAllDeletedClasses = () => {
+    setDeletedClasses([]);
+    try {
+      localStorage.removeItem('school_deleted_classes');
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 antialiased flex flex-col justify-between overflow-x-hidden w-full">
       {/* Navbar & Navigation */}
@@ -601,6 +632,9 @@ export default function App() {
           onOpenHelpTips={() => setHelpModalOpen(true)}
           onOpenPrintModal={() => setPrintModalMode('SALON')}
           onPrintBoardSchedule={() => boardPrintHandlerRef.current?.()}
+          onRestoreAutoBackup={handleRestoreFromAutoBackup}
+          onRestoreDeletedClasses={handleRestoreAllDeletedClasses}
+          deletedClassesCount={deletedClasses.length}
           studentsCount={students.length}
           classroomsCount={classrooms.length}
           teachersCount={teachers.length}
