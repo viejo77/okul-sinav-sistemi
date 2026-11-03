@@ -30,6 +30,7 @@ import {
   getGradeLevel,
 } from '../../services/kelebekEngine';
 import { MultipleTeachersSupervisorModal } from '../modals/MultipleTeachersSupervisorModal';
+import { UnassignedStudentsWarningModal } from '../modals/UnassignedStudentsWarningModal';
 import { exportPlanToExcelFile } from '../../services/excelService';
 import { exportPlanToGoogleSheets } from '../../services/googleSheets';
 import { getClassColor } from '../../utils/classColors';
@@ -55,6 +56,7 @@ interface Props {
   setCurrentPlan: (plan: SeatingPlanResult) => void;
   onOpenPrintModal: (mode: 'SALON' | 'SUPERVISOR' | 'BEP' | 'CLASSES') => void;
   onGoToAnalysis?: () => void;
+  onGoToClassrooms?: () => void;
 }
 
 export const SeatingPlanSection: React.FC<Props> = ({
@@ -73,6 +75,7 @@ export const SeatingPlanSection: React.FC<Props> = ({
   setCurrentPlan,
   onOpenPrintModal,
   onGoToAnalysis,
+  onGoToClassrooms,
 }) => {
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
   const [layoutMode, setLayoutMode] = useState<'COLUMNS' | 'ROWS'>('COLUMNS');
@@ -88,6 +91,17 @@ export const SeatingPlanSection: React.FC<Props> = ({
   const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
   const [detectedConflicts, setDetectedConflicts] = useState<MultipleTeacherConflict[]>([]);
 
+  // Unassigned students warning modal state
+  const [unassignedModalOpen, setUnassignedModalOpen] = useState(false);
+  const [unassignedWarningData, setUnassignedWarningData] = useState<{
+    unassignedStudents: Student[];
+    totalStudents: number;
+    totalCapacity: number;
+    activeRoomsCount: number;
+    neededRoomsCount: number;
+    preferredSupervisors?: Record<string, string>;
+  } | null>(null);
+
   // Reset local room selection and filters whenever the active exam is changed
   useEffect(() => {
     setSelectedRoomIndex(0);
@@ -96,8 +110,11 @@ export const SeatingPlanSection: React.FC<Props> = ({
     setErrorMessage(null);
   }, [activeExam?.id]);
 
-  // Execute actual generation with optional user supervisor preferences
-  const executeGeneration = (preferredSupervisors?: Record<string, string>) => {
+  // Execute actual generation with optional user supervisor preferences & relaxation
+  const executeGeneration = (
+    preferredSupervisors?: Record<string, string>,
+    allowMinimalRelaxation = false
+  ) => {
     if (!activeExam) return;
 
     const safeSubject: Subject = subject || {
@@ -123,7 +140,47 @@ export const SeatingPlanSection: React.FC<Props> = ({
         teachers,
         savedPlans,
         preferredSupervisors,
+        allowMinimalRelaxation,
       });
+
+      // KESİN KURAL: Eğer dağıtılmamış öğrenci kalıyorsa KESİNLİKLE dağıtım yapma!
+      // Plan kaydedilmez veya ekrana yansıtılmaz.
+      // Kaç öğrencinin açıkta kaldığı ve kaç salona ihtiyaç olduğu uyarı penceresiyle gösterilir.
+      if (plan.unassignedStudents && plan.unassignedStudents.length > 0) {
+        const activeRooms = classrooms.filter(c => c.isSelectedForExam);
+        const totalCapacity = activeRooms.reduce((sum, r) => sum + r.capacity, 0);
+        const assignedClassSet = new Set(
+          activeExam.assignedClasses.map(ac => ac.classLevel.toUpperCase().trim())
+        );
+        const totalStudents = students.filter(s =>
+          assignedClassSet.has(s.classLevel.toUpperCase().trim())
+        ).length;
+
+        // Ortalama salon kapasitesine göre ek salon ihtiyacı
+        const avgRoomCapacity = Math.max(
+          1,
+          Math.round(totalCapacity / Math.max(1, activeRooms.length))
+        );
+        const neededRoomsCount = Math.max(
+          1,
+          Math.ceil(plan.unassignedStudents.length / avgRoomCapacity)
+        );
+
+        setUnassignedWarningData({
+          unassignedStudents: plan.unassignedStudents,
+          totalStudents,
+          totalCapacity,
+          activeRoomsCount: activeRooms.length,
+          neededRoomsCount,
+          preferredSupervisors,
+        });
+        setUnassignedModalOpen(true);
+        return; // Plan kaydedilmez ve uygulanmaz!
+      }
+
+      // Tüm öğrenciler başarıyla yerleştirildiğinde modalı kapat
+      setUnassignedModalOpen(false);
+      setUnassignedWarningData(null);
 
       // Strict association with current active exam
       const examSpecificPlan: SeatingPlanResult = {
@@ -140,6 +197,12 @@ export const SeatingPlanSection: React.FC<Props> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleRelaxAndDistribute = () => {
+    const supervisors = unassignedWarningData?.preferredSupervisors;
+    setUnassignedModalOpen(false);
+    executeGeneration(supervisors, true);
   };
 
   // Run Butterfly Algorithm - prompts modal if rooms have multiple teachers at that slot
@@ -262,6 +325,21 @@ export const SeatingPlanSection: React.FC<Props> = ({
           executeGeneration(selections);
         }}
       />
+
+      {/* Unassigned Students Warning & Relaxation Modal */}
+      {unassignedWarningData && (
+        <UnassignedStudentsWarningModal
+          isOpen={unassignedModalOpen}
+          onClose={() => setUnassignedModalOpen(false)}
+          unassignedStudents={unassignedWarningData.unassignedStudents}
+          totalStudents={unassignedWarningData.totalStudents}
+          totalCapacity={unassignedWarningData.totalCapacity}
+          activeRoomsCount={unassignedWarningData.activeRoomsCount}
+          neededRoomsCount={unassignedWarningData.neededRoomsCount}
+          onRelaxAndDistribute={handleRelaxAndDistribute}
+          onGoToClassrooms={onGoToClassrooms}
+        />
+      )}
 
       {/* TOP HEADER BAR (With Active Exam Switcher & Distribution Status) */}
       <div className="bg-white rounded-xl px-3 sm:px-4 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs w-full min-w-0">

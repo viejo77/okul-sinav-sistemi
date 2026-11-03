@@ -709,6 +709,7 @@ export default function App() {
               setCurrentPlan={handleSetCurrentPlan}
               onOpenPrintModal={mode => setPrintModalMode(mode)}
               onGoToAnalysis={() => setActiveTab(7)}
+              onGoToClassrooms={() => setActiveTab(3)}
             />
           )}
 
