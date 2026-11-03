@@ -70,6 +70,7 @@ export interface KelebekEngineInput {
   teachers: Teacher[];
   savedPlans?: Record<string, SeatingPlanResult>;
   preferredSupervisors?: Record<string, string>; // roomId -> teacherId or teacherName
+  allowMinimalRelaxation?: boolean; // Emergency minimal relaxation when physical seats exist but butterfly rules strand students
 }
 
 /**
@@ -621,7 +622,8 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
     r: number,
     s: number,
     maxPerClass: number,
-    isRelaxed = false
+    isRelaxed = false,
+    allowAdjacentRelaxation = false
   ): boolean {
     const seatInfo = ctx.matrix[c][r][s];
     if (!seatInfo || seatInfo.student) return false;
@@ -665,8 +667,10 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
       // --- 2D SPATIAL NEIGHBOR CHECKS ---
       // 1. Aynı Sıradaki Yan Yana Partner Kontrolü (İkili / Çoklu Sıra)
       // KESİN KURAL: Önünde hangi ek olursa olsun (ATP 9-A, AMP 9-B vb.),
-      // aynı kademedeki (9, 10, 11, 12) öğrenciler ASLA yan yana oturamaz!
+      // aynı kademedeki (9, 10, 11, 12) öğrenciler normalde ASLA yan yana oturamaz!
       let hasDeskPartnerConflict = false;
+      let isSameGradePartner = false;
+      let isSameClassPartner = false;
       let hasDifferentGradePartner = false;
 
       for (let os = 0; os < ctx.seatsPerRow; os++) {
@@ -676,15 +680,17 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
           const otherStudent = otherSeat.student;
           const otherGrade = getGradeLevel(otherStudent.classLevel);
 
-          // Kural 1: Aynı şube (örn: 9-A ile 9-A, ATP 9-A ile ATP 9-A) ASLA yan yana oturamaz!
+          // Kural 1: Aynı şube (örn: 9-A ile 9-A, ATP 9-A ile ATP 9-A)
           if (otherStudent.classLevel.trim().toUpperCase() === classKey.trim().toUpperCase()) {
+            isSameClassPartner = true;
             hasDeskPartnerConflict = true;
             break;
           }
 
           // Kural 2: Önünde hangi ek olursa olsun (örn: ATP 9-A ile AMP 9-B veya 9-A ile 9-B)
-          // Aynı kademedeki öğrenciler ASLA yan yana oturamaz!
+          // Aynı kademedeki öğrenciler
           if (candidateGrade && otherGrade && candidateGrade === otherGrade) {
+            isSameGradePartner = true;
             hasDeskPartnerConflict = true;
             break;
           }
@@ -696,9 +702,20 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
       }
 
       if (hasDeskPartnerConflict) {
-        // Kesin kural ihlali: Yan yana aynı kademe veya şube oturamaz!
-        // Bu aday sınıf bu koltuk için kesin olarak elenir.
-        continue;
+        if (!allowAdjacentRelaxation) {
+          // Kesin kural ihlali: Yan yana aynı kademe veya şube oturamaz!
+          // Bu aday sınıf bu koltuk için kesin olarak elenir.
+          continue;
+        } else {
+          // Minimum esnetme: Açıkta kalan son 3-5 veya 8-10 öğrenci için
+          // Aynı kademe ama farklı şube oturabilsin (-6000 ceza)
+          // Aynı şube ise ancak mecbur kalınırsa (-50000 ceza)
+          if (isSameClassPartner) {
+            score -= 50000;
+          } else if (isSameGradePartner) {
+            score -= 6000;
+          }
+        }
       }
 
       if (hasDifferentGradePartner) {
@@ -875,6 +892,37 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
           }
         }
       }
+    }
+  }
+
+  // FAZ 4: MİNİMUM ESNETME (ACİL TAMAMLAMA)
+  // Kullanıcı "Kısıtlamalara Rağmen Yine de Dağıt (Minimum Esnetme)" seçtiğinde devreye girer.
+  // Faz 1-3'ün ardından hala yerleşememiş öğrenci varsa, salonlardaki boş kalan koltuklara
+  // yan yana aynı kademedeki öğrencilerin (öncelikle farklı şubeler olmak üzere) oturmasına izin verilir.
+  if (input.allowMinimalRelaxation && hasRemainingStudents()) {
+    for (let r = 0; r < maxRowsAcrossRooms; r++) {
+      for (let c = 0; c < maxColsAcrossRooms; c++) {
+        for (const ctx of roomContexts) {
+          if (!hasRemainingStudents()) break;
+          if (ctx.plan.totalAssigned >= ctx.plan.capacity) continue;
+          if (c >= ctx.cols || r >= ctx.rows) continue;
+
+          for (let s = 0; s < ctx.seatsPerRow; s++) {
+            const seatInfo = ctx.matrix[c][r][s];
+            if (!seatInfo || seatInfo.student) continue;
+
+            const maxPerClass = Math.max(1, Math.floor(ctx.plan.capacity / 2) + 5);
+            // allowAdjacentRelaxation = true, isRelaxed = true
+            attemptAssignSeat(ctx, c, r, s, maxPerClass, true, true);
+          }
+        }
+      }
+    }
+
+    if (!hasRemainingStudents()) {
+      warnings.push(
+        'Açıkta kalan öğrenciler, kullanıcı onayıyla minimum esnetme uygulanarak (aynı kademeden farklı şubeler yan yana oturacak şekilde) mevcut salonlara yerleştirilmiştir.'
+      );
     }
   }
 
