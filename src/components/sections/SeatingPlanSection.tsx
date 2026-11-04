@@ -20,16 +20,21 @@ import {
   Armchair,
   BookOpen,
   Info,
+  Edit2,
   Trash2,
 } from 'lucide-react';
-import { Classroom, Exam, Student, Subject, Teacher, SeatingPlanResult, SeatedStudentInfo } from '../../types';
+import { Classroom, Exam, Student, Subject, Teacher, SeatingPlanResult, SeatedStudentInfo, RoomSeatingPlan } from '../../types';
 import {
   generateKelebekPlan,
   findMultipleTeacherConflicts,
+  detectSupervisorExceptions,
+  SupervisorExceptionData,
   MultipleTeacherConflict,
   getGradeLevel,
 } from '../../services/kelebekEngine';
 import { MultipleTeachersSupervisorModal } from '../modals/MultipleTeachersSupervisorModal';
+import { SupervisorExceptionModal } from '../modals/SupervisorExceptionModal';
+import { ManualSupervisorEditModal } from '../modals/ManualSupervisorEditModal';
 import { UnassignedStudentsWarningModal } from '../modals/UnassignedStudentsWarningModal';
 import { exportPlanToExcelFile } from '../../services/excelService';
 import { exportPlanToGoogleSheets } from '../../services/googleSheets';
@@ -90,6 +95,14 @@ export const SeatingPlanSection: React.FC<Props> = ({
   // Multi-teacher conflict resolution modal state
   const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
   const [detectedConflicts, setDetectedConflicts] = useState<MultipleTeacherConflict[]>([]);
+
+  // Supervisor exception modal state (when no classroom teacher, co-teacher, or free duty teacher exists)
+  const [exceptionModalOpen, setExceptionModalOpen] = useState(false);
+  const [supervisorExceptionData, setSupervisorExceptionData] = useState<SupervisorExceptionData | null>(null);
+
+  // Manual supervisor edit modal state (for editing any room supervisor on the fly)
+  const [manualEditModalOpen, setManualEditModalOpen] = useState(false);
+  const [manualEditRoom, setManualEditRoom] = useState<RoomSeatingPlan | null>(null);
 
   // Unassigned students warning modal state
   const [unassignedModalOpen, setUnassignedModalOpen] = useState(false);
@@ -205,6 +218,41 @@ export const SeatingPlanSection: React.FC<Props> = ({
     executeGeneration(supervisors, true);
   };
 
+  // Check if any room has no classroom/co-teacher/duty teacher and requires exception selection
+  const checkExceptionsOrExecute = (preferredSupervisors?: Record<string, string>) => {
+    if (!activeExam) return;
+
+    const safeSubject: Subject = subject || {
+      id: activeExam.subjectId || 'sub-auto',
+      name:
+        activeExam.subjectName ||
+        (activeExam.assignedClasses && activeExam.assignedClasses[0]?.subjectName) ||
+        'Ortak Sınav',
+      code: 'ORT',
+      teachers: [],
+    };
+
+    const activeRooms = classrooms.filter(c => c.isSelectedForExam);
+
+    // Check for unstaffed rooms exception
+    const exceptions = detectSupervisorExceptions(
+      activeRooms,
+      activeExam,
+      teachers,
+      safeSubject.teachers || [],
+      savedPlans,
+      preferredSupervisors
+    );
+
+    if (exceptions && exceptions.unstaffedRooms.length > 0) {
+      setSupervisorExceptionData(exceptions);
+      setExceptionModalOpen(true);
+      return;
+    }
+
+    executeGeneration(preferredSupervisors);
+  };
+
   // Run Butterfly Algorithm - prompts modal if rooms have multiple teachers at that slot
   const handleGenerate = () => {
     if (!activeExam) {
@@ -237,7 +285,43 @@ export const SeatingPlanSection: React.FC<Props> = ({
       return;
     }
 
-    executeGeneration();
+    checkExceptionsOrExecute();
+  };
+
+  // Confirmed choices from supervisor exception modal
+  const handleExceptionConfirm = (selections: Record<string, string>) => {
+    setExceptionModalOpen(false);
+    executeGeneration(selections);
+  };
+
+  // Manual supervisor edit for currently selected room
+  const handleOpenManualSupervisorEdit = (room: RoomSeatingPlan) => {
+    setManualEditRoom(room);
+    setManualEditModalOpen(true);
+  };
+
+  const handleSaveManualSupervisor = (newSupervisorName: string, newBranch: string) => {
+    if (!currentPlan || !manualEditRoom) return;
+
+    const updatedRooms = currentPlan.rooms.map(r => {
+      if (r.classroomId === manualEditRoom.classroomId) {
+        return {
+          ...r,
+          supervisorName: newSupervisorName,
+          supervisorBranch: newBranch,
+          supervisorReason: 'Elle Manuel Atandı',
+        };
+      }
+      return r;
+    });
+
+    const updatedPlan: SeatingPlanResult = {
+      ...currentPlan,
+      rooms: updatedRooms,
+    };
+
+    setCurrentPlan(updatedPlan);
+    setManualEditModalOpen(false);
   };
 
   // Google Sheets Export
@@ -322,8 +406,26 @@ export const SeatingPlanSection: React.FC<Props> = ({
         conflicts={detectedConflicts}
         onConfirm={selections => {
           setConflictsModalOpen(false);
-          executeGeneration(selections);
+          checkExceptionsOrExecute(selections);
         }}
+      />
+
+      {/* Supervisor Exception Modal (When no classroom teacher, co-teacher, or free duty teacher exists) */}
+      <SupervisorExceptionModal
+        isOpen={exceptionModalOpen}
+        onClose={() => setExceptionModalOpen(false)}
+        exceptionData={supervisorExceptionData}
+        onConfirm={handleExceptionConfirm}
+      />
+
+      {/* Manual Supervisor Edit Modal (Edit or assign custom supervisor to room anytime) */}
+      <ManualSupervisorEditModal
+        isOpen={manualEditModalOpen}
+        onClose={() => setManualEditModalOpen(false)}
+        room={manualEditRoom}
+        teachers={teachers}
+        savedPlans={savedPlans}
+        onSave={handleSaveManualSupervisor}
       />
 
       {/* Unassigned Students Warning & Relaxation Modal */}
@@ -753,8 +855,19 @@ export const SeatingPlanSection: React.FC<Props> = ({
 
                     {/* Gözetmen Bilgisi */}
                     <div className="bg-white border border-slate-200 p-2.5 rounded-lg shadow-2xs text-xs min-w-[220px]">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">
-                        Salon Sınav Gözetmeni
+                      <div className="flex items-center justify-between">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">
+                          Salon Sınav Gözetmeni
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenManualSupervisorEdit(selectedRoom)}
+                          className="text-blue-600 hover:text-blue-800 text-[11px] font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                          title="Bu salona elle başka bir gözetmen ata veya değiştir"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Elle Değiştir / Ata</span>
+                        </button>
                       </div>
                       <div className="font-extrabold text-slate-900 text-xs mt-0.5">
                         {selectedRoom.supervisorName}

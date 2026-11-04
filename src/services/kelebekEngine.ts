@@ -152,6 +152,258 @@ export function findMultipleTeacherConflicts(
   return conflicts;
 }
 
+export interface TeacherAtSlotInfo {
+  id: string;
+  name: string;
+  branch: string;
+  dutyCount: number;
+  dutyDay: string;
+  isFreeAtSlot: boolean;
+  statusText: string;
+  teachingClassroom?: string;
+}
+
+export interface SupervisorExceptionData {
+  unstaffedRooms: {
+    roomId: string;
+    roomName: string;
+    capacity: number;
+  }[];
+  teachersAtSlot: TeacherAtSlotInfo[];
+  allSchoolTeachers: {
+    id: string;
+    name: string;
+    branch: string;
+    dutyCount: number;
+  }[];
+}
+
+/**
+ * Detects exam rooms where no classroom teacher, no unassigned co-teacher, and no free duty teacher exists.
+ * Returns information about unstaffed rooms and teachers present at school during that period for manual exception selection.
+ */
+export function detectSupervisorExceptions(
+  activeRooms: Classroom[],
+  exam: Exam,
+  teachers: Teacher[],
+  commissionMembers: string[] = [],
+  savedPlans?: Record<string, SeatingPlanResult>,
+  preferredSupervisors?: Record<string, string>
+): SupervisorExceptionData | null {
+  const commissionSet = new Set(commissionMembers.map(m => m.toLowerCase().trim()));
+  const teacherDutyCounts = getTeacherSupervisorCounts(teachers, savedPlans);
+  const assignedTeacherIds = new Set<string>();
+  const roomSupervisorMap = new Map<string, string>();
+
+  const doesScheduleMatchRoom = (scheduleClassroom: string, roomName: string): boolean => {
+    const sNorm = scheduleClassroom.toLowerCase().trim();
+    const rNorm = roomName.toLowerCase().trim();
+    if (sNorm === rNorm) return true;
+    if (rNorm.includes(`(${sNorm})`) || sNorm.includes(`(${rNorm})`)) return true;
+    return false;
+  };
+
+  const isScheduleInAnyActiveRoom = (scheduleClassroom: string): boolean => {
+    return activeRooms.some(r => doesScheduleMatchRoom(scheduleClassroom, r.name));
+  };
+
+  const isTeacherAtSchoolOnDay = (t: Teacher): boolean => {
+    if (t.isLeave) return false;
+    if (t.dutyDay === exam.dayOfWeek) return true;
+    return (t.schedule || []).some(s => s.day === exam.dayOfWeek);
+  };
+
+  const isTeachingInNonExamClassAtSlot = (t: Teacher): boolean => {
+    return (t.schedule || []).some(
+      s =>
+        s.day === exam.dayOfWeek &&
+        s.period === exam.period &&
+        !isScheduleInAnyActiveRoom(s.classroomName)
+    );
+  };
+
+  const isEligibleAuto = (t: Teacher): boolean => {
+    if (t.isLeave) return false;
+    if (commissionSet.has(t.name.toLowerCase().trim())) return false;
+    if (assignedTeacherIds.has(t.id)) return false;
+    if (!isTeacherAtSchoolOnDay(t)) return false;
+    if (isTeachingInNonExamClassAtSlot(t)) return false;
+    return true;
+  };
+
+  // 0. Pre-assign preferred supervisors if specified
+  if (preferredSupervisors) {
+    for (const room of activeRooms) {
+      if (preferredSupervisors[room.id]) {
+        const pref = preferredSupervisors[room.id].trim();
+        const matched = teachers.find(
+          t => t.id === pref || t.name.toLowerCase().trim() === pref.toLowerCase()
+        );
+        if (matched) {
+          assignedTeacherIds.add(matched.id);
+          roomSupervisorMap.set(room.id, matched.name);
+        } else if (pref) {
+          roomSupervisorMap.set(room.id, pref);
+        }
+      }
+    }
+  }
+
+  // 1. Stage 1: Room classroom teacher
+  for (const room of activeRooms) {
+    if (roomSupervisorMap.has(room.id)) continue;
+    const roomTeachers = teachers.filter(t => {
+      if (!isEligibleAuto(t)) return false;
+      return (t.schedule || []).some(
+        s =>
+          s.day === exam.dayOfWeek &&
+          s.period === exam.period &&
+          doesScheduleMatchRoom(s.classroomName, room.name)
+      );
+    });
+
+    if (roomTeachers.length > 0) {
+      roomTeachers.sort((a, b) => {
+        const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
+        const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
+        if (countA !== countB) return countA - countB;
+        return a.name.localeCompare(b.name, 'tr');
+      });
+      const selected = roomTeachers[0];
+      assignedTeacherIds.add(selected.id);
+      roomSupervisorMap.set(room.id, selected.name);
+    }
+  }
+
+  // 2. Stage 2: Co-teachers from active exam rooms
+  const unassignedCoTeachers = teachers
+    .filter(t => {
+      if (!isEligibleAuto(t)) return false;
+      return (t.schedule || []).some(
+        s =>
+          s.day === exam.dayOfWeek &&
+          s.period === exam.period &&
+          isScheduleInAnyActiveRoom(s.classroomName)
+      );
+    })
+    .sort((a, b) => {
+      const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
+      const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
+      if (countA !== countB) return countA - countB;
+      return a.name.localeCompare(b.name, 'tr');
+    });
+
+  let coIdx = 0;
+  for (const room of activeRooms) {
+    if (!roomSupervisorMap.has(room.id)) {
+      if (coIdx < unassignedCoTeachers.length) {
+        const t = unassignedCoTeachers[coIdx++];
+        assignedTeacherIds.add(t.id);
+        roomSupervisorMap.set(room.id, t.name);
+      }
+    }
+  }
+
+  // 3. Stage 3: Duty teachers with NO lesson in this period
+  const availableDutyTeachers = teachers
+    .filter(t => {
+      if (!isEligibleAuto(t)) return false;
+      if (t.dutyDay !== exam.dayOfWeek) return false;
+      const hasAnyLessonInPeriod = (t.schedule || []).some(
+        s => s.day === exam.dayOfWeek && s.period === exam.period
+      );
+      return !hasAnyLessonInPeriod;
+    })
+    .sort((a, b) => {
+      const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
+      const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
+      if (countA !== countB) return countA - countB;
+      return a.name.localeCompare(b.name, 'tr');
+    });
+
+  let dutyIdx = 0;
+  for (const room of activeRooms) {
+    if (!roomSupervisorMap.has(room.id)) {
+      if (dutyIdx < availableDutyTeachers.length) {
+        const t = availableDutyTeachers[dutyIdx++];
+        assignedTeacherIds.add(t.id);
+        roomSupervisorMap.set(room.id, t.name);
+      }
+    }
+  }
+
+  // 4. Find unstaffed rooms
+  const unstaffedRooms: { roomId: string; roomName: string; capacity: number }[] = [];
+  for (const room of activeRooms) {
+    if (!roomSupervisorMap.has(room.id)) {
+      unstaffedRooms.push({
+        roomId: room.id,
+        roomName: room.name,
+        capacity: room.capacity,
+      });
+    }
+  }
+
+  if (unstaffedRooms.length === 0) {
+    return null;
+  }
+
+  // 5. Gather teachers present at school during this slot for exception selection
+  const teachersAtSlot: TeacherAtSlotInfo[] = [];
+  teachers.forEach(t => {
+    if (t.isLeave) return;
+    if (commissionSet.has(t.name.toLowerCase().trim())) return;
+    if (assignedTeacherIds.has(t.id)) return;
+    if (!isTeacherAtSchoolOnDay(t)) return;
+
+    const slotLesson = (t.schedule || []).find(
+      s => s.day === exam.dayOfWeek && s.period === exam.period
+    );
+
+    const isFree = !slotLesson;
+    const dutyCount = teacherDutyCounts.get(t.name.toLowerCase().trim()) || 0;
+
+    teachersAtSlot.push({
+      id: t.id,
+      name: t.name,
+      branch: t.branch,
+      dutyCount,
+      dutyDay: t.dutyDay || 'Yok',
+      isFreeAtSlot: isFree,
+      statusText: isFree
+        ? 'O Saatte Boş Dersi Var'
+        : `Normal Sınıfında Dersi Var (${slotLesson.classroomName})`,
+      teachingClassroom: slotLesson ? slotLesson.classroomName : undefined,
+    });
+  });
+
+  teachersAtSlot.sort((a, b) => {
+    if (a.isFreeAtSlot !== b.isFreeAtSlot) {
+      return a.isFreeAtSlot ? -1 : 1;
+    }
+    if (a.dutyCount !== b.dutyCount) {
+      return a.dutyCount - b.dutyCount;
+    }
+    return a.name.localeCompare(b.name, 'tr');
+  });
+
+  const allSchoolTeachers = teachers
+    .filter(t => !t.isLeave && !commissionSet.has(t.name.toLowerCase().trim()))
+    .map(t => ({
+      id: t.id,
+      name: t.name,
+      branch: t.branch,
+      dutyCount: teacherDutyCounts.get(t.name.toLowerCase().trim()) || 0,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
+  return {
+    unstaffedRooms,
+    teachersAtSlot,
+    allSchoolTeachers,
+  };
+}
+
 export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResult {
   const { exam, subject, students, classrooms, teachers, savedPlans, preferredSupervisors } = input;
   const warnings: string[] = [];
@@ -326,19 +578,27 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
   // A. AŞAMA 1: Her Salonun Kendi Derslik Öğretmeni
   // -------------------------------------------------------------
   for (const room of activeRooms) {
-    // 1. Kullanıcının manuel bir gözetmen tercihi varsa
+    // 1. Kullanıcının manuel bir gözetmen tercihi veya istisnai seçimi varsa
     if (preferredSupervisors && preferredSupervisors[room.id]) {
-      const prefIdentifier = preferredSupervisors[room.id].toLowerCase().trim();
+      const prefIdentifier = preferredSupervisors[room.id].trim();
+      const prefLower = prefIdentifier.toLowerCase();
       const prefTeacher = teachers.find(
-        t => (t.id === prefIdentifier || t.name.toLowerCase().trim() === prefIdentifier) && isTeacherEligibleForSupervisor(t)
+        t => t.id === prefIdentifier || t.name.toLowerCase().trim() === prefLower
       );
       if (prefTeacher) {
         roomSupervisorMap.set(room.id, {
           teacherName: prefTeacher.name,
           branch: prefTeacher.branch,
-          reason: 'Derslik Öğretmeni (Kullanıcı Tercihi)',
+          reason: 'İstisnai Gözetmen Ataması (Seçilen Öğretmen)',
         });
         assignedTeacherIds.add(prefTeacher.id);
+        continue;
+      } else if (prefIdentifier) {
+        roomSupervisorMap.set(room.id, {
+          teacherName: prefIdentifier,
+          branch: 'Özel / Harici',
+          reason: 'İstisnai Gözetmen Ataması (Elle Atandı)',
+        });
         continue;
       }
     }
@@ -455,57 +715,20 @@ export function generateKelebekPlan(input: KelebekEngineInput): SeatingPlanResul
   }
 
   // -------------------------------------------------------------
-  // D. AŞAMA 4: O gün okulda olan ve sınav saatinde hiçbir dersi olmayan boş öğretmenler (Son Çare)
-  // Nöbetçi de yetersiz kalırsa: O gün okulda başka saatlerde dersi olan ancak sınav saatinde
-  // tamamen boş olan öğretmenler aldıkları görev sayısına göre atanır.
-  // -------------------------------------------------------------
-  const availableFreeTeachers = teachers
-    .filter(t => {
-      if (!isTeacherEligibleForSupervisor(t)) return false;
-      // O gün okulda dersi olmalı
-      const hasLessonToday = (t.schedule || []).some(s => s.day === exam.dayOfWeek);
-      if (!hasLessonToday && t.dutyDay !== exam.dayOfWeek) return false;
-      // Sınav saatinde hiçbir dersi olmamalı (tamamen boş olmalı)
-      const hasAnyLessonInPeriod = (t.schedule || []).some(
-        s => s.day === exam.dayOfWeek && s.period === exam.period
-      );
-      return !hasAnyLessonInPeriod;
-    })
-    .sort((a, b) => {
-      const countA = teacherDutyCounts.get(a.name.toLowerCase().trim()) || 0;
-      const countB = teacherDutyCounts.get(b.name.toLowerCase().trim()) || 0;
-      if (countA !== countB) return countA - countB;
-      return a.name.localeCompare(b.name, 'tr');
-    });
-
-  let freeIdx = 0;
-  for (const room of activeRooms) {
-    if (!roomSupervisorMap.has(room.id)) {
-      if (freeIdx < availableFreeTeachers.length) {
-        const t = availableFreeTeachers[freeIdx++];
-        roomSupervisorMap.set(room.id, {
-          teacherName: t.name,
-          branch: t.branch,
-          reason: 'Boş Dersi Olan Öğretmen (Okulda Görevli)',
-        });
-        assignedTeacherIds.add(t.id);
-      }
-    }
-  }
-
-  // -------------------------------------------------------------
-  // E. AŞAMA 5: Hala gözetmen bulunamayan salonlar
-  // Kesin kural gereği sınav saatinde normal derste olan veya o gün okulda olmayan öğretmenler ASLA atanmaz!
+  // D. AŞAMA 4: Gözetmen Bulunamayan Salonlar (İstisnai Durum)
+  // Derslik öğretmeni, eş öğretmen veya boşta nöbetçi öğretmen bulunamayan salonlar
+  // kullanıcı istisnai pencerede bir tercih yaptıysa yukarıda preferredSupervisors
+  // üzerinden atanmıştır. Tercih yapılmayan veya boşta kalan salonlar:
   // -------------------------------------------------------------
   for (const room of activeRooms) {
     if (!roomSupervisorMap.has(room.id)) {
       roomSupervisorMap.set(room.id, {
         teacherName: 'Gözetmen Atanmadı (Öğretmen Yetersiz)',
         branch: '-',
-        reason: 'Atanmadı (Uygun Boşta Öğretmen Yok)',
+        reason: 'Atanmadı (Derslik & Boş Nöbetçi Öğretmen Yok)',
       });
       warnings.push(
-        `${room.name} salonu için uygun gözetmen bulunamadı! (Diğer tüm öğretmenler sınav saatinde normal derste veya o gün okulda değil).`
+        `${room.name} salonu için derslik veya boşta nöbetçi öğretmen bulunamadı! Lütfen oturma planından bu salona elle gözetmen atayınız.`
       );
     }
   }
