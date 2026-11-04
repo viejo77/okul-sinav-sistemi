@@ -93,15 +93,17 @@ export const HelpTipsModal: React.FC<HelpTipsModalProps> = ({
     },
     {
       id: 4,
-      title: '4. Gözetmen Programı',
+      title: '4. Gözetmen Programı & Nöbet/İzin Yönetimi',
       icon: GraduationCap,
       badge: 'Görevlendirme',
       color: 'text-purple-600 bg-purple-50 border-purple-200',
-      desc: 'Öğretmen listenizi yükleyin ve sınav salonlarına adil, branş çakışmasını engelleyen gözetmen ataması yapın.',
+      desc: 'Öğretmen haftalık ders programını yükleyin; sistem MEB kurallarına ve 3 aşamalı hiyerarşiye göre adil gözetmen ataması yapar. Nöbet günlerini ve izin durumlarını yönetebilirsiniz.',
       tips: [
-        'Kural: Kendi branş dersi olan öğretmenler o sınavda kendi branş salonlarına gözetmen olarak verilmez.',
-        '"Otomatik Dağıt" butonu salon başına 1 asil (isteğe bağlı 1 yedek) gözetmeni adil görev sayısına göre dağıtır.',
-        'Görevli öğretmen listesini tek tıkla resmi imza sirküsü formatında yazdırabilirsiniz.',
+        '3 Aşamalı Atama: 1. Aşama: O saatte sınıfta dersi olan Derslik Öğretmeni. 2. Aşama: Derslik öğretmeni yoksa o derse giren diğer öğretmenlerden boşta olan (en az sınav görevi alan öncelikli). 3. Aşama: O gün nöbetçi olup sınav saatinde dersi olmayan öğretmen.',
+        'İstisnai Gözetmen Atama Penceresi: Yukarıdaki 3 aşamada gözetmen bulunamayan salonlar için otomatik açılır; okulda bulunan (boşta veya dersi olan) tüm öğretmenleri listeler, tek tıkla veya elle serbest isim yazılarak atama yapılabilir.',
+        'İzinli / Raporlu Öğretmenler: İzinli olarak işaretlenen personele kesinlikle görev verilmez. Tablodan tek tıkla izni kaldırabilir, "Tüm İzinleri Temizle" ile herkesi göreve döndürebilir veya öğretmeni tamamen silebilirsiniz.',
+        'Nöbet Günleri Yönetimi: Her öğretmenin nöbet gününü belirleyebilir, tekil nöbeti kaldırabilir, "Nöbetleri Sıfırla" ile toplu temizleyebilir veya tek öğretmeni silebilirsiniz.',
+        'Oturma Planından Doğrudan Atama: "5. Oturma Düzeni" sekmesindeki her salon kartında yer alan "Elle Değiştir / Ata" butonuyla dilediğiniz öğretmeni salona gözetmen yapabilirsiniz.',
       ],
     },
     {
@@ -112,9 +114,10 @@ export const HelpTipsModal: React.FC<HelpTipsModalProps> = ({
       color: 'text-indigo-600 bg-indigo-50 border-indigo-200',
       desc: 'Akıllı Kelebek Algoritmasını tek tuşla çalıştırarak öğrencileri salonlara yan yana ve ardışık çakışma olmadan yerleştirin.',
       tips: [
-        '"Kelebek Dağıtımını Başlat" butonuna tıklayın; sistem milisaniyeler içinde binlerce permutasyonu değerlendirir.',
-        'Algoritma, aynı kademedeki öğrencilerin yan yana, arka arkaya veya çapraz temas etmesini engeller.',
-        'Salon kartlarına tıklayarak interaktif oturma planı krokisini inceleyebilir, koltukları kontrol edebilirsiniz.',
+        '"Kelebek Dağıtımını Başlat" butonuna tıklayın; sistem milisaniyeler içinde binlerce permutasyonu değerlendirerek aynı kademedeki öğrencilerin yan yana veya arka arkaya gelmesini engeller.',
+        'Açıkta Kalan Öğrenci Uyarısı: Kapasite yetersiz olduğunda kaç öğrencinin yerleşemediği ve kaç ek salona ihtiyaç olduğu detaylı bir uyarı penceresiyle bildirilir.',
+        '"Kısıtlamalara Rağmen Yine de Dağıt": Salon yetersizliği durumunda kısıtlamaları tamamen değil, minimum düzeyde devre dışı bırakır (3-5 veya 8-10 öğrencinin kontrollü yan yana gelmesine izin verir). Buna rağmen açıkta öğrenci kalırsa kesinlikle dağıtım yapmaz.',
+        'Salon Kartları & Canlı Müdahale: Her salon kartına tıklayarak oturma krokisini inceleyebilir, salon kartı üzerinden gözetmeni doğrudan değiştirebilir veya atayabilirsiniz.',
       ],
     },
     {
@@ -131,15 +134,15 @@ export const HelpTipsModal: React.FC<HelpTipsModalProps> = ({
     },
     {
       id: 7,
-      title: '7. Sınav Analizi & Raporlama',
+      title: '7. Sınav Analizi & Kullanım Raporları',
       icon: BarChart3,
       badge: 'Denetim',
       color: 'text-rose-600 bg-rose-50 border-rose-200',
-      desc: 'Salon doluluk haritaları, sınıf karışım yüzdeleri ve salon yoklama/tutanak listeleri.',
+      desc: 'Salon kapasite kullanım haritaları, sınıf karışım yüzdeleri, gözetmen görev yükü analizi ve salon sınav yoklama tutanakları.',
       tips: [
-        'Salon doluluk renkleri: Yeşil (%80+ yüksek verim), Mavi (%50-79 dengeli), Kırmızı (<%50 düşük doluluk).',
-        'Salon Yoklama Listesi & İmzalı Tutanaklar tek tıkla A4 formatında basıma hazırdır.',
-        'Sayfada tek ekranda çalışma için üstteki sekme anahtarlarını (Harita / Grafikler / Tablo) kullanabilirsiniz.',
+        'Salon Kapasite Kullanım Raporu: Her salonun koltuk doluluk oranı; Yeşil (%80+ yüksek verim), Mavi (%50-79 dengeli), Kırmızı (<%50 düşük doluluk) renk kodlarıyla analiz edilir.',
+        'Gözetmen Dağılım ve Görev Yükü Analizi: Hangi öğretmenin kaç görev aldığını, görev atama gerekçesini (Derslik Öğretmeni / Boşta Nöbetçi / İstisnai Atama) raporlar.',
+        'Resmi Sınav Tutanakları: Salon Yoklama Listesi ve Sınav İmzalı Tutanakları tek tıkla resmi A4 formatında basıma hazırdır.',
       ],
     },
     {
@@ -170,6 +173,34 @@ export const HelpTipsModal: React.FC<HelpTipsModalProps> = ({
   ];
 
   const goldenRules = [
+    {
+      title: '3 Aşamalı Akıllı Gözetmen Hiyerarşisi',
+      icon: GraduationCap,
+      color: 'text-purple-500 bg-purple-50 border-purple-200',
+      content:
+        'Sistem sınav salonlarına gözetmen atarken sırasıyla: 1) O ders saatinde o sınıfta dersi olan öğretmeni, 2) Yoksa aynı derse giren diğer boş öğretmenlerden en az görev almış olanı, 3) O da yoksa o gün nöbetçi olup sınav saatinde dersi olmayan öğretmeni görevlendirir.',
+    },
+    {
+      title: 'İstisnai Gözetmen Atama & Elle Görev Verme',
+      icon: Users,
+      color: 'text-blue-500 bg-blue-50 border-blue-200',
+      content:
+        '3 aşamada gözetmen bulunamazsa otomatik olarak "İstisnai Gözetmen Atama" penceresi açılır. Bu pencerede okulda o saatte bulunan tüm öğretmenler (boşta ve dersi olanlar) listelenir; dilerseniz listeden seçebilir veya serbestçe elle öğretmen adı yazabilirsiniz. Ayrıca Oturma Planı sekmesinde her salon kartından "Elle Değiştir / Ata" butonuyla doğrudan düzenleme yapabilirsiniz.',
+    },
+    {
+      title: 'Açıkta Kalan Öğrenci ve Minimum Esnetme Kuralı',
+      icon: AlertTriangle,
+      color: 'text-amber-500 bg-amber-50 border-amber-200',
+      content:
+        'Kapasite yetmediğinde sistem kaç öğrencinin açıkta kaldığını ve kaç ek salona ihtiyaç duyulduğunu gösterir. "Kısıtlamalara Rağmen Yine de Dağıt" seçilirse kısıtlamalar tamamen değil, minimum düzeyde (3-5 veya 8-10 öğrenci yan yana gelebilecek şekilde) esnetilir. Ancak buna rağmen açıkta öğrenci kalıyorsa veri bütünlüğü için dağıtım kesinlikle iptal edilir.',
+    },
+    {
+      title: 'Nöbet ve İzin/Rapor Yönetimi & Silme Fonksiyonları',
+      icon: ShieldCheck,
+      color: 'text-rose-500 bg-rose-50 border-rose-200',
+      content:
+        'İzinli veya raporlu öğretmenlere asla sınav görevi verilmez. Nöbet Günleri sekmesinden öğretmenin nöbet gününü silebilir, tüm nöbetleri sıfırlayabilir veya öğretmeni tamamen silebilirsiniz. İzinli/Raporlu sekmesinden de tek tıkla izni kaldırabilir, tüm izinleri temizleyebilir veya öğretmeni silebilirsiniz.',
+    },
     {
       title: 'Kelebek (Butterfly) Mantığı Nasıl Çalışır?',
       icon: Sparkles,
@@ -209,24 +240,36 @@ export const HelpTipsModal: React.FC<HelpTipsModalProps> = ({
 
   const faqs = [
     {
-      q: 'Bazı öğrenciler salonlara yerleşemedi (Kapasite Uyarısı) uyarısı alıyorum, ne yapmalıyım?',
-      a: 'Bu durum sınava katılan öğrenci mevcudunun, aktif seçilen salonların toplam koltuk kapasitesinden fazla olduğunu gösterir. "3. Salon Yönetimi" sekmesine giderek yeni bir salon ekleyin veya mevcut salonların sıra/koltuk sayılarını güncelleyip "Oturma Düzeni" sekmesinden dağıtımı yeniden başlatın.',
+      q: 'Sınavın olduğu ders saatinde salonun dersi olan öğretmeni yoksa veya izinliyse gözetmen nasıl atanır?',
+      a: 'Sistem 3 aşamalı hiyerarşiyi çalıştırır: 1) İlk olarak salonda o saatte dersi olan öğretmeni arar. 2) Yoksa veya izinliyse, aynı derse giren diğer öğretmenlerden boşta olanı (daha az gözetmenlik almış olan öncelikli olarak) atar. 3) O da yoksa, o gün nöbetçi olan ve o ders saatinde dersi bulunmayan nöbetçi öğretmeni görevlendirir.',
     },
     {
-      q: 'Tek bir sınıf kademesi için (örneğin yalnızca 9. sınıflar) kelebek yapılır mı?',
-      a: 'Kelebek sistemi doğası gereği en az 2 farklı kademenin (ör. 9 ve 10, veya 9 ve 11) birbirine çapraz örülmesiyle çalışır. Tek kademe seçildiğinde sistem öğrencileri şube bazında karıştırarak dağıtır, ancak en yüksek güvenlik için iki farklı kademe önerilir.',
+      q: 'Gözetmensiz salon kalırsa ne olur? İstisnai Gözetmen Atama nasıl çalışır?',
+      a: '3 aşamada gözetmen bulunamazsa, dağıtım bitiminde otomatik olarak "İstisnai Gözetmen Atama" penceresi açılır. Bu pencere o saatte okulda bulunan tüm öğretmenleri listeler (boşta olanları yeşil, derste olanları turuncu olarak gösterir). Tek tıkla önerilen öğretmeni atayabilir veya elle dilediğiniz öğretmenin adını yazarak salonu doldurabilirsiniz.',
+    },
+    {
+      q: 'Oturma planı oluştuktan sonra salona farklı bir gözetmen atayabilir miyim?',
+      a: 'Evet! "5. Oturma Düzeni" sekmesindeki her salon kartının sağ üst köşesinde "Elle Değiştir / Ata" butonu bulunur. Bu butona tıklayarak dilediğiniz öğretmeni anında o salonun gözetmeni olarak atayabilir veya mevcut gözetmeni değiştirebilirsiniz.',
+    },
+    {
+      q: 'Öğrenciler salonlara yerleşemediğinde (Kapasite Uyarısı) "Kısıtlamalara Rağmen Yine de Dağıt" seçeneği nasıl çalışır?',
+      a: 'Öğrenci mevcudu salon kapasitesine sığmadığında bir uyarı penceresi açılarak kaç öğrencinin açıkta kaldığı ve kaç ek salona ihtiyaç olduğu gösterilir. "Kısıtlamalara Rağmen Yine de Dağıt" seçildiğinde kısıtlamalar tamamen değil, minimum düzeyde devre dışı bırakılır (3-5 veya 8-10 öğrencinin kontrollü yan yana gelmesine izin verilir). Buna rağmen açıkta öğrenci kalıyorsa dağıtım kesinlikle yapılmaz.',
+    },
+    {
+      q: 'İzinli/raporlu bir öğretmenin iznini nasıl kaldırırım veya kaydını nasıl silerim?',
+      a: '"4. Gözetmen Programı > İzinli / Raporlu Öğretmenler" sekmesine gidin. Öğretmenin yanındaki "İzni Kaldır" butonuna tıklayarak iznini kaldırıp göreve döndürebilirsiniz. Üstteki "Tüm İzinleri Temizle" butonuyla tüm öğretmenleri tek tıkla göreve döndürebilir, çöp kutusu (Sil) butonuyla da öğretmeni sistemden tamamen silebilirsiniz.',
+    },
+    {
+      q: 'Öğretmen Nöbet Günleri sekmesinde silme ve sıfırlama nasıl yapılır?',
+      a: '"4. Gözetmen Programı > Öğretmen Nöbet Günleri" sekmesinde her satırda nöbeti kaldırma butonu ve öğretmeni silme butonu yer alır. Ayrıca tablonun üstündeki "Nöbetleri Sıfırla" butonuyla tüm nöbetleri "Nöbet Yok" yapabilir, "Tümünü Sil" butonuyla tüm öğretmen kayıtlarını temizleyebilirsiniz.',
+    },
+    {
+      q: 'Salon Kapasite Kullanım Raporları ve Analizler ne anlama gelir?',
+      a: '"7. Sınav Analizi" sekmesinde salonların kapasite kullanım oranları Yeşil (%80+ yüksek verim), Mavi (%50-79 dengeli) ve Kırmızı (<%50 düşük doluluk) olarak raporlanır. Ayrıca gözetmenlerin sınav yükü ve yoklama tutanakları da bu sekmede sunulur.',
     },
     {
       q: 'Öğrencileri e-Okul veya Excel\'den nasıl yükleyebilirim?',
       a: '"2. Öğrenci Listesi" sekmesine girip "Excel/CSV Yükle" butonuna tıklayın. e-Okul\'dan aldığınız sınıf listelerini Excel olarak doğrudan yükleyebilirsiniz. Başlıkta Numara, Ad, Soyad, Sınıf olması yeterlidir.',
-    },
-    {
-      q: 'Gözetmen öğretmenler kendi branş sınavlarına atanır mı?',
-      a: 'Hayır. Gözetmen dağıtım motoru öğretmenin branşı ile salonun sınav dersi arasında otomatik çapraz kontrol yapar. Matematik öğretmeni kendi sınavında gözetmen yapılmaz.',
-    },
-    {
-      q: 'Yazıcı çıktılarında her salonun ayrı sayfaya çıkması nasıl sağlanır?',
-      a: 'Yazdırma modülü standart A4 sayfa sonu (page-break-after: always) ile kodlanmıştır. Tek tıkla 50 salonluk bir sınavın tüm çıktılarını sayfalar karışmadan alabilirsiniz.',
     },
   ];
 

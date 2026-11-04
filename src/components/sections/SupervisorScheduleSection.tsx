@@ -16,6 +16,7 @@ import {
   Clock,
   Sparkles,
   RefreshCw,
+  RotateCcw,
   Calendar,
   UserX,
   UserCheck,
@@ -92,6 +93,11 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
   const [editingItem, setEditingItem] = useState<WeeklyScheduleItem | null>(null);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [deletingTeacher, setDeletingTeacher] = useState<{ id: string; name: string; lessonsCount: number } | null>(null);
+  const [showResetAllDutyModal, setShowResetAllDutyModal] = useState<boolean>(false);
+  const [showClearAllTeachersModal, setShowClearAllTeachersModal] = useState<boolean>(false);
+  const [showClearAllLeavesModal, setShowClearAllLeavesModal] = useState<boolean>(false);
+  const [onlyLeaveTeachersFilter, setOnlyLeaveTeachersFilter] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Form state for adding/editing lesson
@@ -228,6 +234,35 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
     notify('success', 'Nöbet günü güncellendi.');
   };
 
+  // Handle Single Teacher Deletion
+  const handleConfirmDeleteTeacher = () => {
+    if (!deletingTeacher) return;
+    const teacherId = deletingTeacher.id;
+    const teacherName = deletingTeacher.name;
+
+    setTeachers(prev => prev.filter(t => t.id !== teacherId));
+    setScheduleItems(prev =>
+      prev.filter(i => i.teacherName.toLowerCase().trim() !== teacherName.toLowerCase().trim())
+    );
+    setDeletingTeacher(null);
+    notify('success', `"${teacherName}" adlı öğretmen ve ilgili ders kayıtları silindi.`);
+  };
+
+  // Handle Reset All Duty Days (sets all dutyDay to 'Yok')
+  const handleConfirmResetAllDuty = () => {
+    setTeachers(prev => prev.map(t => ({ ...t, dutyDay: 'Yok' })));
+    setShowResetAllDutyModal(false);
+    notify('success', 'Tüm öğretmenlerin nöbet günleri "Nöbet Yok" olarak sıfırlandı.');
+  };
+
+  // Handle Clear All Teachers
+  const handleConfirmClearAllTeachers = () => {
+    setTeachers([]);
+    setScheduleItems([]);
+    setShowClearAllTeachersModal(false);
+    notify('success', 'Tüm öğretmenler ve haftalık ders programı temizlendi.');
+  };
+
   // Handle Teacher Leave Toggle
   const handleToggleLeave = (teacherId: string) => {
     setTeachers(prev =>
@@ -263,6 +298,39 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
         return t;
       })
     );
+  };
+
+  // Handle Remove Single Teacher Leave
+  const handleRemoveTeacherLeave = (teacherId: string) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    setTeachers(prev =>
+      prev.map(t => {
+        if (t.id === teacherId) {
+          return {
+            ...t,
+            isLeave: false,
+            leaveReason: undefined,
+            leaveDate: undefined,
+          };
+        }
+        return t;
+      })
+    );
+    notify('success', `"${teacher?.name || 'Öğretmen'}" için izin/rapor kaydı kaldırıldı ve göreve döndürüldü.`);
+  };
+
+  // Handle Clear All Teacher Leaves
+  const handleConfirmClearAllLeaves = () => {
+    setTeachers(prev =>
+      prev.map(t => ({
+        ...t,
+        isLeave: false,
+        leaveReason: undefined,
+        leaveDate: undefined,
+      }))
+    );
+    setShowClearAllLeavesModal(false);
+    notify('success', 'Tüm öğretmenlerin izin ve rapor kayıtları temizlendi, hepsi göreve döndürüldü.');
   };
 
   // Handle Open Add Modal
@@ -839,7 +907,7 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -847,9 +915,33 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                   value={teacherSearchQuery}
                   onChange={e => setTeacherSearchQuery(e.target.value)}
                   placeholder="Öğretmen veya branş ara..."
-                  className="rounded-lg border border-slate-300 pl-8 pr-3 py-1 bg-white text-xs w-48 sm:w-56 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="rounded-lg border border-slate-300 pl-8 pr-3 py-1 bg-white text-xs w-44 sm:w-52 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
+
+              {/* Tüm Nöbetleri Sıfırla Butonu */}
+              <button
+                type="button"
+                onClick={() => setShowResetAllDutyModal(true)}
+                disabled={teachers.length === 0}
+                className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                title="Tüm öğretmenlerin nöbet günlerini 'Yok' yapar"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                <span className="hidden sm:inline">Nöbetleri Sıfırla</span>
+              </button>
+
+              {/* Tüm Öğretmenleri Sil Butonu */}
+              <button
+                type="button"
+                onClick={() => setShowClearAllTeachersModal(true)}
+                disabled={teachers.length === 0}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                title="Tüm öğretmenleri ve ders programlarını sil"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span className="hidden sm:inline">Tümünü Sil</span>
+              </button>
 
               <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-lg text-[11px]">
                 {teachers.length} Öğretmen
@@ -864,9 +956,10 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                   <th className="py-2.5 px-4 w-12 text-center">#</th>
                   <th className="py-2.5 px-4">Öğretmen Adı Soyadı</th>
                   <th className="py-2.5 px-4">Branş</th>
-                  <th className="py-2.5 px-4 w-48">Nöbet Günü</th>
-                  <th className="py-2.5 px-4 w-32 text-center">Programdaki Dersi</th>
-                  <th className="py-2.5 px-4 w-36 text-center">Durum</th>
+                  <th className="py-2.5 px-4 w-44">Nöbet Günü</th>
+                  <th className="py-2.5 px-4 w-28 text-center">Programdaki Dersi</th>
+                  <th className="py-2.5 px-4 w-32 text-center">Durum</th>
+                  <th className="py-2.5 px-4 w-24 text-center">İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
@@ -920,6 +1013,34 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                           </span>
                         )}
                       </td>
+                      <td className="py-2 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {t.dutyDay && t.dutyDay !== 'Yok' && (
+                            <button
+                              type="button"
+                              onClick={() => handleTeacherDutyDayChange(t.id, 'Yok')}
+                              className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 p-1.5 rounded-lg border border-amber-200 transition cursor-pointer"
+                              title="Nöbet gününü kaldır (Nöbet Yok yap)"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeletingTeacher({
+                                id: t.id,
+                                name: t.name,
+                                lessonsCount: t.schedule?.length || 0,
+                              })
+                            }
+                            className="text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 p-1.5 rounded-lg border border-rose-200 transition cursor-pointer"
+                            title={`${t.name} öğretmenini sil`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -939,7 +1060,7 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                 Sınav Günü İzinli ve Raporlu Öğretmen Yönetimi
               </h4>
               <p className="text-rose-800 leading-relaxed font-medium">
-                Burada <strong>İzinli / Raporlu</strong> olarak işaretlenen öğretmenlere, kelebek sınav dağıtımı yapılırken <strong>asla gözetmenlik görevi verilmez</strong>. O öğretmenin dersi olan sınav salonuna öncelikle boşta nöbetçi öğretmen, nöbetçi yoksa diğer dersi olmayan öğretmenler otomatik atanır.
+                Burada <strong>İzinli / Raporlu</strong> olarak işaretlenen öğretmenlere, kelebek sınav dağıtımı yapılırken <strong>asla gözetmenlik görevi verilmez</strong>. O öğretmenin dersi olan sınav salonuna öncelikle boşta nöbetçi öğretmen, nöbetçi yoksa diğer dersi olmayan öğretmenler otomatik atanır. İzni biten öğretmenin iznini tek tıkla kaldırabilir veya istemediğiniz öğretmen kayıtlarını silebilirsiniz.
               </p>
             </div>
           </div>
@@ -947,29 +1068,70 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
           {/* Teacher Leave Table Card */}
           <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-3.5 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <span className="font-black text-slate-800">
-                  Toplam İzinli / Raporlu:
+                  İzinli / Raporlu:
                 </span>
-                <span className="bg-rose-600 text-white font-black px-2.5 py-0.5 rounded-full text-xs">
+                <span className="bg-rose-600 text-white font-black px-2.5 py-0.5 rounded-full text-xs shadow-2xs">
                   {leaveTeachersCount} Öğretmen
                 </span>
+
+                {/* Filter Toggles */}
+                <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold ml-1">
+                  <button
+                    type="button"
+                    onClick={() => setOnlyLeaveTeachersFilter(false)}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer text-[11px] ${
+                      !onlyLeaveTeachersFilter
+                        ? 'bg-white text-slate-900 shadow-xs font-black'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Tümü ({teachers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOnlyLeaveTeachersFilter(true)}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer text-[11px] ${
+                      onlyLeaveTeachersFilter
+                        ? 'bg-rose-600 text-white shadow-xs font-black'
+                        : 'text-slate-600 hover:text-rose-700'
+                    }`}
+                  >
+                    Sadece İzinli ({leaveTeachersCount})
+                  </button>
+                </div>
+
                 {activeExam && (
-                  <span className="text-slate-500 font-medium ml-2">
-                    (Aktif Sınav: <strong>{activeExam.name}</strong> - {activeExam.date})
+                  <span className="text-slate-500 font-medium hidden md:inline ml-1">
+                    (Sınav: <strong>{activeExam.name}</strong> - {activeExam.date})
                   </span>
                 )}
               </div>
 
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={leaveSearchQuery}
-                  onChange={e => setLeaveSearchQuery(e.target.value)}
-                  placeholder="Öğretmen ara..."
-                  className="rounded-lg border border-slate-300 pl-8 pr-3 py-1 bg-white text-xs w-48 sm:w-56 focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                />
+              <div className="flex items-center gap-2">
+                {leaveTeachersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowClearAllLeavesModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold transition cursor-pointer text-xs shadow-2xs"
+                    title="Tüm izin ve rapor kayıtlarını kaldırarak herkesi göreve döndür"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Tüm İzinleri Temizle</span>
+                  </button>
+                )}
+
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={leaveSearchQuery}
+                    onChange={e => setLeaveSearchQuery(e.target.value)}
+                    placeholder="Öğretmen ara..."
+                    className="rounded-lg border border-slate-300 pl-8 pr-3 py-1 bg-white text-xs w-44 sm:w-52 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -979,21 +1141,24 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                   <tr className="bg-rose-700 text-white font-bold text-xs uppercase tracking-wider">
                     <th className="py-2.5 px-4 w-12 text-center">#</th>
                     <th className="py-2.5 px-4">Öğretmen Adı Soyadı</th>
-                    <th className="py-2.5 px-4">Branş</th>
-                    <th className="py-2.5 px-4 w-36">Nöbet Günü</th>
+                    <th className="py-2.5 px-4 w-32">Branş</th>
+                    <th className="py-2.5 px-4 w-32">Nöbet Günü</th>
                     <th className="py-2.5 px-4 w-44">İzin / Rapor Nedeni</th>
                     <th className="py-2.5 px-4 w-36">İzin Tarihi</th>
-                    <th className="py-2.5 px-4 w-36 text-center">Durum / İşlem</th>
+                    <th className="py-2.5 px-4 w-32 text-center">Durum</th>
+                    <th className="py-2.5 px-4 w-36 text-center">İşlem</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                   {teachers
                     .filter(t => {
+                      if (onlyLeaveTeachersFilter && !t.isLeave) return false;
                       if (!leaveSearchQuery.trim()) return true;
                       const q = leaveSearchQuery.toLowerCase().trim();
                       return (
                         t.name.toLowerCase().includes(q) ||
-                        (t.branch && t.branch.toLowerCase().includes(q))
+                        (t.branch && t.branch.toLowerCase().includes(q)) ||
+                        (t.leaveReason && t.leaveReason.toLowerCase().includes(q))
                       );
                     })
                     .map((t, idx) => {
@@ -1034,7 +1199,7 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                                 className="w-full bg-white border border-rose-300 rounded px-2 py-1 text-xs font-semibold text-rose-900 focus:outline-rose-500"
                               />
                             ) : (
-                              <span className="text-slate-400 italic">—</span>
+                              <span className="text-slate-400 italic text-[11px]">—</span>
                             )}
                           </td>
                           <td className="py-1.5 px-4">
@@ -1052,31 +1217,62 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
                                 className="w-full bg-white border border-rose-300 rounded px-2 py-1 text-xs font-mono font-semibold text-rose-900 focus:outline-rose-500"
                               />
                             ) : (
-                              <span className="text-slate-400 italic">—</span>
+                              <span className="text-slate-400 italic text-[11px]">—</span>
                             )}
                           </td>
                           <td className="py-2 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleLeave(t.id)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 mx-auto shadow-2xs ${
-                                isLeave
-                                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                                  : 'bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300'
-                              }`}
-                            >
+                            {isLeave ? (
+                              <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 font-extrabold px-2 py-0.5 rounded text-[10.5px]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
+                                İzinli / Raporlu
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10.5px]">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Görevde
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
                               {isLeave ? (
-                                <>
-                                  <UserX className="w-3.5 h-3.5" />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveTeacherLeave(t.id)}
+                                  className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                  title="İzni kaldır ve öğretmeni göreve döndür"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
                                   <span>İzni Kaldır</span>
-                                </>
+                                </button>
                               ) : (
-                                <>
-                                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>İzin / Rapor Gir</span>
-                                </>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleLeave(t.id)}
+                                  className="text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                  title="Öğretmeni izinli / raporlu olarak işaretle"
+                                >
+                                  <UserX className="w-3 h-3 text-rose-600" />
+                                  <span>İzin Gir</span>
+                                </button>
                               )}
-                            </button>
+
+                              {/* Öğretmeni Tamamen Silme Butonu */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeletingTeacher({
+                                    id: t.id,
+                                    name: t.name,
+                                    lessonsCount: t.schedule?.length || 0,
+                                  })
+                                }
+                                className="text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 p-1.5 rounded-lg border border-rose-200 transition cursor-pointer shadow-2xs"
+                                title={`${t.name} öğretmenini sil`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1357,7 +1553,140 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
         </div>
       )}
 
-      {/* MODAL 4: GOOGLE SHEETS DERS PROGRAMI AKTARIMI */}
+      {/* MODAL 4: TEK ÖĞRETMEN SİLME ONAYI */}
+      {deletingTeacher && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-center font-bold text-sm text-slate-900 mb-1">
+              Öğretmeni Sil
+            </h3>
+            <p className="text-center text-xs text-slate-600 mb-4 leading-relaxed">
+              <strong className="text-slate-900 font-bold">{deletingTeacher.name}</strong> adlı öğretmen
+              {deletingTeacher.lessonsCount > 0 && ` ve haftalık programdaki ${deletingTeacher.lessonsCount} adet ders kaydı`} sistemden silinecektir. Bu işlemi onaylıyor musunuz?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeletingTeacher(null)}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteTeacher}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition shadow-sm cursor-pointer"
+              >
+                Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: TÜM NÖBETLERİ SIFIRLAMA ONAYI */}
+      {showResetAllDutyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3">
+              <RotateCcw className="w-5 h-5" />
+            </div>
+            <h3 className="text-center font-bold text-sm text-slate-900 mb-1">
+              Tüm Nöbet Günlerini Sıfırla
+            </h3>
+            <p className="text-center text-xs text-slate-600 mb-4 leading-relaxed">
+              Kayıtlı <strong>{teachers.length}</strong> öğretmenin tüm nöbet günleri <strong>&quot;Nöbet Yok&quot;</strong> olarak ayarlanacaktır. Öğretmenler ve ders programları silinmez. Onaylıyor musunuz?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowResetAllDutyModal(false)}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResetAllDuty}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition shadow-sm cursor-pointer"
+              >
+                Nöbetleri Sıfırla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: TÜM ÖĞRETMENLERİ VE PROGRAMI SİLME ONAYI */}
+      {showClearAllTeachersModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-center font-bold text-sm text-slate-900 mb-1">
+              Tüm Öğretmenleri ve Programı Sil
+            </h3>
+            <p className="text-center text-xs text-slate-600 mb-4 leading-relaxed">
+              Tüm öğretmenler ve haftalık ders programı kayıtları tamamen silinecektir. Bu işlem geri alınamaz. Onaylıyor musunuz?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowClearAllTeachersModal(false)}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAllTeachers}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition shadow-sm cursor-pointer"
+              >
+                Hepsini Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: TÜM İZİNLERİ KALDIRMA ONAYI */}
+      {showClearAllLeavesModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <RotateCcw className="w-5 h-5" />
+            </div>
+            <h3 className="text-center font-bold text-sm text-slate-900 mb-1">
+              Tüm İzinleri Kaldır
+            </h3>
+            <p className="text-center text-xs text-slate-600 mb-4 leading-relaxed">
+              Kayıtlı <strong>{leaveTeachersCount}</strong> öğretmenin tüm izin ve rapor durumları sıfırlanacak ve hepsi <strong>&quot;Görevde&quot;</strong> olarak ayarlanacaktır. Öğretmenler ve ders programları silinmez. Onaylıyor musunuz?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowClearAllLeavesModal(false)}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAllLeaves}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition shadow-sm cursor-pointer"
+              >
+                İzinleri Temizle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: GOOGLE SHEETS DERS PROGRAMI AKTARIMI */}
       <GoogleSheetsImportModal
         isOpen={isGoogleSheetsModalOpen}
         onClose={() => setIsGoogleSheetsModalOpen(false)}

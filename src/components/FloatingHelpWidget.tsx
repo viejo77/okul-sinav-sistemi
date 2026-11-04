@@ -25,19 +25,19 @@ const TAB_QUICK_TIPS: Record<number, { title: string; tip: string; actionText?: 
   },
   4: {
     title: '4. Gözetmen Programı İpucu',
-    tip: '"Otomatik Dağıt" butonu öğretmenlerin kendi branş sınavlarına atanmasını otomatik engeller ve görevleri adil dağıtır.',
+    tip: '3 Aşamalı Dağıtım (Derslik Öğretmeni -> Boş Eş Öğretmen -> Boş Nöbetçi). Gözetmensiz salon kalırsa "İstisnai Gözetmen Atama" penceresi açılır veya salona elle öğretmen atanabilir. Nöbet ve izin tablosundan tekli/toplu silme ve sıfırlama yapılabilir.',
   },
   5: {
     title: '5. Oturma Düzeni İpucu',
-    tip: '"Kelebek Dağıtımını Başlat" butonuna tıklayın. Algoritma yan yana ve arka arkaya aynı şubenin gelmesini otomatik önler. Salon krokilerini kartlara tıklayarak inceleyin.',
+    tip: 'Kelebek motoru öğrencileri çakışmasız yerleştirir. Açıkta öğrenci kalırsa salon/öğrenci uyarı penceresi açılır; "Kısıtlamalara Rağmen Dağıt" ile minimum esnetme yapılabilir veya salon kartından doğrudan gözetmen atanabilir.',
   },
   6: {
     title: '6. Sınıf Dağılımları İpucu',
     tip: 'Her şubenin kendi kapısına asılacak resmi listeleri buradan alabilirsiniz. "Tüm Şubeleri Yazdır" ile her sınıf ayrı A4 sayfasına basılır.',
   },
   7: {
-    title: '7. Sınav Analizi İpucu',
-    tip: 'Salon doluluk oranlarını ve salon sınav tutanaklarını tek ekranda inceleyin. Yeşil salonlar yüksek verimli, mavi dengeli, kırmızı düşük dolulukludur.',
+    title: '7. Sınav Analizi & Kullanım Raporları İpucu',
+    tip: 'Kullanım Raporları: Salon kapasite kullanım oranları (%80+ yeşil, %50-79 mavi, <%50 kırmızı), gözetmen görev yükü ve resmi salon yoklama tutanaklarını inceleyin.',
   },
   8: {
     title: '8. Yazdır & PDF Al İpucu',
