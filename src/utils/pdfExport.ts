@@ -446,8 +446,8 @@ export function printElementDirectly(
         body.is-printing-report .no-print {
           display: none !important;
         }
-        body.is-printing-report .print-only {
-          display: none !important;
+        body.is-printing-report #direct-print-container .print-only {
+          display: block !important;
         }
         [data-pdf-page="true"] {
           break-after: page !important;

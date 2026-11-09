@@ -83,9 +83,12 @@ html, body {
       background: white !important;
     }
 
-    body.is-printing-report .no-print,
-    body.is-printing-report .print-only {
+    body.is-printing-report .no-print {
       display: none !important;
+    }
+
+    body.is-printing-report #direct-print-container .print-only {
+      display: block !important;
     }
 
     /* Isolated print mode for Noticeboard Exam Schedule */
