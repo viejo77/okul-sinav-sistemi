@@ -22,6 +22,8 @@ import {
   Info,
   Edit2,
   Trash2,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
 import { Classroom, Exam, Student, Subject, Teacher, SeatingPlanResult, SeatedStudentInfo, RoomSeatingPlan } from '../../types';
 import {
@@ -31,11 +33,13 @@ import {
   SupervisorExceptionData,
   MultipleTeacherConflict,
   getGradeLevel,
+  redistributeSupervisorsOnly,
 } from '../../services/kelebekEngine';
 import { MultipleTeachersSupervisorModal } from '../modals/MultipleTeachersSupervisorModal';
 import { SupervisorExceptionModal } from '../modals/SupervisorExceptionModal';
 import { ManualSupervisorEditModal } from '../modals/ManualSupervisorEditModal';
 import { UnassignedStudentsWarningModal } from '../modals/UnassignedStudentsWarningModal';
+import { ManageSupervisorsModal } from '../modals/ManageSupervisorsModal';
 import { exportPlanToExcelFile } from '../../services/excelService';
 import { exportPlanToGoogleSheets } from '../../services/googleSheets';
 import { getClassColor } from '../../utils/classColors';
@@ -114,6 +118,29 @@ export const SeatingPlanSection: React.FC<Props> = ({
     neededRoomsCount: number;
     preferredSupervisors?: Record<string, string>;
   } | null>(null);
+
+  // Manage supervisors modal state (updating supervisors without touching student seating plan)
+  const [manageSupervisorsModalOpen, setManageSupervisorsModalOpen] = useState(false);
+  const [supervisorNoticeToast, setSupervisorNoticeToast] = useState<string | null>(null);
+
+  // Map teachers by lowercase name and ID for quick leave status detection
+  const teacherMap = useMemo(() => {
+    const map = new Map<string, Teacher>();
+    teachers.forEach(t => {
+      map.set(t.name.toLowerCase().trim(), t);
+      map.set(t.id, t);
+    });
+    return map;
+  }, [teachers]);
+
+  // Detect which rooms in the current plan have an assigned supervisor who is on leave or unassigned
+  const onLeaveRooms = useMemo(() => {
+    if (!currentPlan) return [];
+    return currentPlan.rooms.filter(room => {
+      const teacher = teacherMap.get(room.supervisorName.toLowerCase().trim());
+      return teacher?.isLeave === true;
+    });
+  }, [currentPlan, teacherMap]);
 
   // Reset local room selection and filters whenever the active exam is changed
   useEffect(() => {
@@ -322,6 +349,81 @@ export const SeatingPlanSection: React.FC<Props> = ({
 
     setCurrentPlan(updatedPlan);
     setManualEditModalOpen(false);
+    setSupervisorNoticeToast(`"${newSupervisorName}" başarıyla salona atandı (Öğrenci yerleşimi korundu).`);
+    setTimeout(() => setSupervisorNoticeToast(null), 4000);
+  };
+
+  // Redistributes ONLY the supervisors across the existing seating plan
+  // without modifying ANY student seating assignments, room arrangements, or unassigned students.
+  const handleRedistributeSupervisorsOnly = (preferredSupervisors?: Record<string, string>) => {
+    if (!activeExam || !currentPlan) return;
+
+    try {
+      const result = redistributeSupervisorsOnly({
+        plan: currentPlan,
+        exam: activeExam,
+        teachers,
+        classrooms,
+        savedPlans,
+        preferredSupervisors,
+      });
+
+      setCurrentPlan(result.updatedPlan);
+      setSupervisorNoticeToast('Öğrenci oturma planı hiç bozulmadan tüm gözetmenler başarıyla güncellendi!');
+      setTimeout(() => setSupervisorNoticeToast(null), 5000);
+
+      if (result.unassignedRooms.length > 0) {
+        const safeSubject: Subject = subject || {
+          id: activeExam.subjectId || 'sub-auto',
+          name: activeExam.subjectName || 'Ortak Sınav',
+          code: 'ORT',
+          teachers: [],
+        };
+        const activeRooms = classrooms.filter(c => c.isSelectedForExam);
+        const exceptions = detectSupervisorExceptions(
+          activeRooms,
+          activeExam,
+          teachers,
+          safeSubject.teachers || [],
+          savedPlans,
+          preferredSupervisors
+        );
+        if (exceptions && exceptions.unstaffedRooms.length > 0) {
+          setSupervisorExceptionData(exceptions);
+          setExceptionModalOpen(true);
+        }
+      }
+    } catch (err: unknown) {
+      console.error(err);
+      setErrorMessage(err instanceof Error ? err.message : 'Gözetmen ataması sırasında bir hata oluştu.');
+    }
+  };
+
+  // Updates single room supervisor inline while preserving 100% of student seating
+  const handleUpdateRoomSupervisor = (
+    classroomId: string,
+    newSupervisorName: string,
+    newBranch: string,
+    reason: string = 'Elle Manuel Değiştirildi'
+  ) => {
+    if (!currentPlan) return;
+    const updatedRooms = currentPlan.rooms.map(room => {
+      if (room.classroomId === classroomId) {
+        return {
+          ...room,
+          supervisorName: newSupervisorName,
+          supervisorBranch: newBranch,
+          supervisorReason: reason,
+        };
+      }
+      return room;
+    });
+    setCurrentPlan({
+      ...currentPlan,
+      rooms: updatedRooms,
+    });
+    setSupervisorNoticeToast(`"${newSupervisorName}" başarıyla görevlendirildi (Öğrenci düzeni korundu).`);
+    setTimeout(() => setSupervisorNoticeToast(null), 4000);
   };
 
   // Google Sheets Export
@@ -443,6 +545,24 @@ export const SeatingPlanSection: React.FC<Props> = ({
         />
       )}
 
+      {/* Manage Supervisors Modal (Redistribute or change supervisors without modifying student seating) */}
+      {currentPlan && activeExam && (
+        <ManageSupervisorsModal
+          isOpen={manageSupervisorsModalOpen}
+          onClose={() => setManageSupervisorsModalOpen(false)}
+          plan={currentPlan}
+          exam={activeExam}
+          teachers={teachers}
+          onAutoRedistribute={() => {
+            handleRedistributeSupervisorsOnly();
+            setManageSupervisorsModalOpen(false);
+          }}
+          onUpdateRoomSupervisor={(classroomId, newName, newBranch, reason) => {
+            handleUpdateRoomSupervisor(classroomId, newName, newBranch, reason);
+          }}
+        />
+      )}
+
       {/* TOP HEADER BAR (With Active Exam Switcher & Distribution Status) */}
       <div className="bg-white rounded-xl px-3 sm:px-4 py-2 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs w-full min-w-0">
         <div className="flex items-center gap-2 min-w-0 py-0.5">
@@ -548,6 +668,67 @@ export const SeatingPlanSection: React.FC<Props> = ({
         </div>
       )}
 
+      {/* On-Leave Supervisor Warning Alert Banner */}
+      {currentPlan && onLeaveRooms.length > 0 && (
+        <div className="bg-rose-50 border-2 border-rose-400 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-rose-950 shadow-xs">
+          <div className="flex items-start gap-2.5">
+            <UserX className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-extrabold text-sm text-rose-900 flex items-center gap-2">
+                <span>Dikkat: {onLeaveRooms.length} Sınav Salonunun Gözetmeni İzinli / Raporlu!</span>
+                <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+                  Güncelleme Gerekli
+                </span>
+              </div>
+              <p className="text-rose-800 text-[11.5px] mt-0.5">
+                Şu salonların görevlileri okulda değil:{' '}
+                <strong>
+                  {onLeaveRooms
+                    .map(r => `${r.classroomName} (${r.supervisorName})`)
+                    .join(', ')}
+                </strong>
+                . Öğrenci oturma planını hiç bozmadan sadece gözetmenleri yenileyebilirsiniz.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => handleRedistributeSupervisorsOnly()}
+              className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Gözetmenleri Yeniden Ata</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setManageSupervisorsModalOpen(true)}
+              className="flex-1 sm:flex-initial bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 font-extrabold px-3 py-1.5 rounded-lg text-xs shadow-2xs transition cursor-pointer"
+            >
+              Gözetmenleri Yönet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success Notice Toast */}
+      {supervisorNoticeToast && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-xl p-3 flex items-center justify-between gap-2 text-xs font-bold shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{supervisorNoticeToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSupervisorNoticeToast(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-black cursor-pointer px-1.5 py-0.5 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* MAIN TWO-COLUMN LAYOUT (Identical layout structure to Previous 4 Sections) */}
       <div className="flex flex-col lg:flex-row items-start gap-3.5">
         {/* LEFT COLUMN: Fieldset with Actions & Statistics (w-full lg:w-72 shrink-0) */}
@@ -582,6 +763,52 @@ export const SeatingPlanSection: React.FC<Props> = ({
                     : 'Kelebek Dağıtımını Başlat'}
                 </span>
               </button>
+
+              {/* Sadece Gözetmenleri Yeniden Dağıt / Değiştir (Öğrenci Oturma Düzeni Korunur) */}
+              {currentPlan && (
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Gözetmen Yönetimi</span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                      Plan Korunur
+                    </span>
+                  </div>
+
+                  {/* Sadece Gözetmenleri Yeniden Ata Butonu */}
+                  <button
+                    type="button"
+                    onClick={() => handleRedistributeSupervisorsOnly()}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold py-2 px-2.5 rounded-lg shadow-xs flex items-center justify-between text-xs transition cursor-pointer"
+                    title="Öğrenci oturma planını hiç bozmadan sadece izinli öğretmenlerin yerine yeni gözetmen atar"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <RotateCcw className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                      <div className="flex flex-col">
+                        <span className="font-bold leading-tight">Sadece Gözetmenleri Yeniden Ata</span>
+                        <span className="text-[9.5px] text-emerald-100 font-normal">Oturma planı %100 korunur</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Gözetmenleri Yönet & Değiştir Butonu */}
+                  <button
+                    type="button"
+                    onClick={() => setManageSupervisorsModalOpen(true)}
+                    className="w-full bg-white hover:bg-slate-100 text-slate-700 font-bold py-2 px-2.5 rounded-lg border border-slate-300 shadow-2xs flex items-center justify-between text-xs transition cursor-pointer"
+                    title="Tüm sınav salonlarının gözetmenlerini incele veya elle değiştir"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Gözetmenleri Yönet & Değiştir</span>
+                    </div>
+                    {onLeaveRooms.length > 0 && (
+                      <span className="text-[9px] font-mono bg-rose-600 text-white font-black px-1.5 py-0.2 rounded-full">
+                        {onLeaveRooms.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* Rapor & Çıktı Butonları */}
               {currentPlan && (
@@ -854,31 +1081,68 @@ export const SeatingPlanSection: React.FC<Props> = ({
                     </div>
 
                     {/* Gözetmen Bilgisi */}
-                    <div className="bg-white border border-slate-200 p-2.5 rounded-lg shadow-2xs text-xs min-w-[220px]">
-                      <div className="flex items-center justify-between">
-                        <div className="text-[10px] uppercase font-bold text-slate-400">
-                          Salon Sınav Gözetmeni
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenManualSupervisorEdit(selectedRoom)}
-                          className="text-blue-600 hover:text-blue-800 text-[11px] font-bold flex items-center gap-1 hover:underline cursor-pointer"
-                          title="Bu salona elle başka bir gözetmen ata veya değiştir"
+                    {(() => {
+                      const teacher = teacherMap.get(selectedRoom.supervisorName.toLowerCase().trim());
+                      const isLeave = Boolean(teacher?.isLeave);
+
+                      return (
+                        <div
+                          className={`p-2.5 rounded-lg shadow-2xs text-xs min-w-[230px] border transition ${
+                            isLeave
+                              ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200'
+                              : 'bg-white border-slate-200'
+                          }`}
                         >
-                          <Edit2 className="w-3 h-3" />
-                          <span>Elle Değiştir / Ata</span>
-                        </button>
-                      </div>
-                      <div className="font-extrabold text-slate-900 text-xs mt-0.5">
-                        {selectedRoom.supervisorName}
-                      </div>
-                      <div className="flex justify-between items-center text-[10.5px] text-slate-500 mt-0.5">
-                        <span>{selectedRoom.supervisorBranch || 'Genel'}</span>
-                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded font-bold text-[9.5px]">
-                          {selectedRoom.supervisorReason}
-                        </span>
-                      </div>
-                    </div>
+                          <div className="flex items-center justify-between">
+                            <div className="text-[10px] uppercase font-bold text-slate-400">
+                              Salon Sınav Gözetmeni
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenManualSupervisorEdit(selectedRoom)}
+                              className="text-blue-600 hover:text-blue-800 text-[11px] font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                              title="Bu salona elle başka bir gözetmen ata veya değiştir"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Elle Değiştir / Ata</span>
+                            </button>
+                          </div>
+                          <div className="font-extrabold text-slate-900 text-xs mt-0.5 flex items-center justify-between gap-1">
+                            <span>{selectedRoom.supervisorName}</span>
+                            {isLeave && (
+                              <span className="bg-rose-600 text-white font-black text-[9px] px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shadow-2xs">
+                                <UserX className="w-2.5 h-2.5" />
+                                <span>İzinli / Raporlu!</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-center text-[10.5px] text-slate-500 mt-0.5">
+                            <span>{selectedRoom.supervisorBranch || 'Genel'}</span>
+                            <span
+                              className={`px-1.5 py-0.2 rounded font-bold text-[9.5px] border ${
+                                isLeave
+                                  ? 'bg-rose-100 text-rose-800 border-rose-200 font-extrabold'
+                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              }`}
+                            >
+                              {isLeave ? (teacher?.leaveReason || 'İzinli / Raporlu') : selectedRoom.supervisorReason}
+                            </span>
+                          </div>
+                          {isLeave && (
+                            <div className="mt-1.5 pt-1.5 border-t border-rose-200 flex items-center justify-between">
+                              <span className="text-[10px] text-rose-700 font-medium">Bu öğretmen okulda yok!</span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenManualSupervisorEdit(selectedRoom)}
+                                className="text-[10.5px] font-black text-rose-800 hover:text-rose-950 underline cursor-pointer"
+                              >
+                                Yeni Gözetmen Ata →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* 3. Salondaki Ders ve Sınıf Dağılımı (Hangi dersten kaç 9, 10, 11 olduğu) */}

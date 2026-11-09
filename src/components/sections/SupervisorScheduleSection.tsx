@@ -1062,6 +1062,12 @@ export const SupervisorScheduleSection: React.FC<Props> = ({
               <p className="text-rose-800 leading-relaxed font-medium">
                 Burada <strong>İzinli / Raporlu</strong> olarak işaretlenen öğretmenlere, kelebek sınav dağıtımı yapılırken <strong>asla gözetmenlik görevi verilmez</strong>. O öğretmenin dersi olan sınav salonuna öncelikle boşta nöbetçi öğretmen, nöbetçi yoksa diğer dersi olmayan öğretmenler otomatik atanır. İzni biten öğretmenin iznini tek tıkla kaldırabilir veya istemediğiniz öğretmen kayıtlarını silebilirsiniz.
               </p>
+              <div className="mt-2 pt-2 border-t border-rose-200/80 flex items-center gap-2 text-[11px] text-rose-900 font-bold">
+                <span className="bg-rose-200 text-rose-900 px-1.5 py-0.5 rounded text-[10px]">💡 İpucu</span>
+                <span>
+                  Daha önce oturma planı hazırladıysanız ve sonradan bir öğretmen izinli olduysa, <strong>5. Sekmeye (Kelebek Dağıtımı)</strong> gidip <strong>&quot;Sadece Gözetmenleri Yeniden Ata&quot;</strong> butonuna basarak öğrenci koltuk düzenini hiç bozmadan izinli öğretmenin yerine anında yeni gözetmen atayabilirsiniz.
+                </span>
+              </div>
             </div>
           </div>
 
